@@ -416,10 +416,15 @@ class Orbital:
 	    for orbPsi in orbitalList[orbitalName]: # go through electrons in each of the orbital (ie: 1s1, 1s2)
 	        # now calculate Vhf = sum_orb integral psi_orb(r) psi_orb(r') 1/(r-r') dr'
 		# for Vd, consider all orbitals, including this one
+		# (could exclude this one for Helium and remove Vex below,
+		# because for Helium there is a cancellation)
 		#if orbitalName == orbKey and orbPsi.spin == self.spin:
 		#    continue
 
-                # calculate Vd(r) = int W(r')*W(r')*1/(r-r') dV
+                # calculate Vd(r) * W_this(r) = int W(r')*W(r')*1/(r-r') dV *W_this(r)
+		# the W_this(r) part is already part of the Schr. equation
+		# (basically Vd is added as part of a(x) in y''(x) + a(x) y(x) = E y(x) )
+		# So we calculate the integral above only
 		# this is similar to an electrostatis problem
 		# Define a "charge density" rho(r) = W^2(r)/r
 	        # We can use Gauss' law (e0 = 1) to arrive at the integral above:
@@ -479,7 +484,14 @@ class Orbital:
 		if orbPsi.spin == self.spin:
 		    continue
 
-                # calculate Vex(r) = int W_this(r')*W_other(r')*1/(r-r') dV
+                # calculate Vex(r) * W_other(r) = int W_this(r')*W_other(r')*1/(r-r') dV W_other(r)
+		# notice that, differently from Vd, the potential is multiplying W_other, not W_this
+		# so we calculate Vex(r) and then multiply it by W_other/W_this, so that we can add
+		# this in a(x), which is multiplying W_this
+		# in this way, the potential is added as (Vex(r)*W_other(r)/W_this(r))
+		# and the multiplication by W_this(r) in the Schr. equation (it multiplies the potential)
+		# will cancel the denominator out
+		# this has the draw back that if W_this is negative, it will fail spectacularly ...
 		# this is similar to an electrostatics problem
 		# Define a "charge density" rho(r) = W_this(r)W_other(r)/r
 	        # We can use Gauss' law (e0 = 1) to arrive at the integral above:
@@ -528,6 +540,13 @@ class Orbital:
 		# Vex(r-h) = Vex(r) + E(r)*dr
 		for z in reversed(range(0, len(self.r)-1)):
                     Vex[z] = Vex[z+1] + E[z]*(self.r[z+1] - self.r[z])
+		# now scale Vex by W_other/W_this, so it can be added in the potential multiplying W_this
+		for z in range(0, len(self.r)):
+		    if self.psifinal[z] != 0:
+  		        Vex[z] *= orbPsi.psifinal[z]/self.psifinal[z]
+	            else:
+  		        Vex[z] = 0
+	        # and add it in
                 thisVhf -= Vex
 	# this (alledgedly) helps in the convergence
 	# should be just this otherwise:
@@ -646,7 +665,7 @@ while hfIter < 20:
 	k = 0
         for orbPsi in orb[orbitalName]:
             print '-->  (HF iteration '+str(hfIter)+') Solving equation for orbital ', orbitalName, ' electron ', k
-            print '->   (HF iteration '+str(hfIter)+') ', orbitalName, ', electron ', k, ': Hartree-Fock eigenvalue = ', orbPsi.E
+            print '->   (HF iteration '+str(hfIter)+') ', orbitalName, ', electron ', k, ': Hartree-Fock eigenvalue = ', orbPsi.E*eV
 	    k += 1
 
     print '---> (HF iteration '+str(hfIter)+') Solved the Schr. equation with effective potentials, now we use wave functions found to recalculate effective potentials of other electrons in electron x, for each x.'
