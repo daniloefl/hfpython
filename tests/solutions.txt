@@ -1,0 +1,12 @@
+
+Test solutions:
+  * He
+    -> E_{ground state} = -79.4912730619 eV
+    -> E_{0} = -26.9291820435 eV
+    -> E_{1} = -26.9291820435 eV
+  * He^{+}
+    -> E_{ground state} = -54.4188196994 eV
+    -> E_{0} = -54.4188196994 eV
+  * That means:
+    -> He first ionisation energy = -79.4912730619 eV - (-54.4188196994 eV) = -25.072453362500006 eV
+    -> He second ionisation energy = He^{+} ionisation energy = -54.4188196994 eV
