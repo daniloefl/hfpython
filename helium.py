@@ -760,7 +760,7 @@ while hfIter < 30:
     externOrb = ''
     externIdx = -1
     for k in keys:
-        for item in orb[k]:
+        for item in range(0, len(orb[k])):
             if orb[k][item].E > highestE:
 	        highestE = orb[k][item].E
 		externOrb = k
