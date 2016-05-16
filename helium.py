@@ -17,8 +17,8 @@ dx = 1e-3
 
 # precision required when scanning energies
 # change in energies in separate steps must be < eps for convergence
-#eps = 1e-10
-eps = 1e-3
+eps = 1e-10
+#eps = 1e-3
 
 # atomic number
 Z = 2
@@ -649,7 +649,7 @@ def calculateTotalEnergy(orbitalList):
 		    dr = orbPsi.r[z+1] - orbPsi.r[z]
   	        JmK += orbPsi.Vhf[z]*(orbPsi.psifinal[z]**2)*(orbPsi.r[z]**2)*dr
     print "J-K", JmK
-    E0 += -JmK
+    E0 += -0.5*JmK
     return E0
 
 # make Grid
@@ -680,8 +680,9 @@ orb['1s'] = []
 orb['1s'].append(Orbital(_n = 1, _l = 0, _Z = Z, _r = r, _spin = 0.5))
 orb['1s'].append(Orbital(_n = 1, _l = 0, _Z = Z, _r = r, _spin = -0.5))
 
+E_gs_old = 0
 hfIter = 0
-while hfIter < 20:
+while hfIter < 30:
     print '---> Hartree-Fock iteration', hfIter
     print '-->  (HF iteration '+str(hfIter)+') Will now solve atom Schr. equation using Coulomb potential and effective potential caused by other atoms'
     for orbitalName in orb:
@@ -714,4 +715,8 @@ while hfIter < 20:
     print '-->  (HF iteration '+str(hfIter)+') Ground state energy = ', E_gs*eV, ' eV'
     
     hfIter += 1
+    # stop when the new ground state energy is less than 1% of the old one
+    if np.fabs((E_gs - E_gs_old)/E_gs) < 1e-2:
+        break
+    E_gs_old = E_gs
 
