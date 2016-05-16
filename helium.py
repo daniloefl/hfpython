@@ -567,7 +567,7 @@ def plotPotential(r, V, Vhf, name):
     plt.plot(r[idxn:idx], Vtot[idxn:idx], 'b-', label='Total')
     plt.legend(('Coulomb potential', 'HF potential', 'Total'), frameon=False)
     plt.xlabel('$r$')
-    plt.ylabel('$|V(r)|$')
+    plt.ylabel('$V(r)$')
     plt.title('')
     plt.draw()
     #plt.show()
