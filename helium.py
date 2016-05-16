@@ -5,6 +5,14 @@ import matplotlib.pyplot as plt
 
 # ---------- global variables ----------
 
+# atomic number
+Z = 1  # stop here for H
+Z = 2  # stop here for He
+#Z = 3  # stop here for Li
+
+# also change below to get the orbital configuration of the electrons
+# consistent with this ...
+
 # set this to true to show individual messages when scanning the energy
 # can be annoying ...
 debug = False
@@ -19,9 +27,6 @@ dx = 1e-3
 # change in energies in separate steps must be < eps for convergence
 eps = 1e-10
 #eps = 1e-3
-
-# atomic number
-Z = 2
 
 # minimum value of r in the grid is rmin = exp(xmin)/Z
 xmin = np.log(1e-4)
@@ -38,7 +43,7 @@ xmin = np.log(1e-4)
 # rmax = 5.98 a_0
 # (r is in Bohr radius units (a_0) ... here a_0 = 1)
 # (6 Hydrogen atom radii seem reasonable, bu with N =14000, you can get 120 H radii)
-N = 11000
+N = 12000
 
 
 # factorial
@@ -62,7 +67,7 @@ def Vcoulomb(r, Z):
 # they must change when changing the variable of integration (ie: the Grid)
 
 # Grid is finer close to r = 0 and wider as r -> infinity
-# r[i] = exp(xmin + i*dx)/Z
+# r[i] = exp(xmin + i*dx)/C
 # where i goes from 0 to N
 # Z is the atomic number (to make the Grid finer for atoms that have higher Z)
 # the reason for Z in this is that the Coulomb potential is stronger for
@@ -70,12 +75,12 @@ def Vcoulomb(r, Z):
 # getAF() has been written with this Grid format in mind
 # other Grids can be tried, but then getAF() needs to be changed, since
 # the derivative in the Schr. equation now are taken as a function of
-# x = ln(Z*r) (that is: r = exp(x)/Z)
+# x = ln(C*r) (that is: r = exp(x)/C)
 # dx/dr = 1/r (that is: dr/dx = r)
-def init(N, xmin, Z):
+def init(N, xmin, C):
     r = np.zeros(N)
     for i in range(0, N):
-        r[i] = np.exp(xmin + i*dx)/Z
+        r[i] = np.exp(xmin + i*dx)/C
     return r
 
 def norm(x, y):
@@ -156,9 +161,16 @@ class Orbital:
     def __init__(self, _n, _l, _Z, _r, _spin):
         self.n = _n
 	self.l = _l
-	self.Emax = -1e-3
-	self.Emin = -20
-	self.E = -2
+	## this is just a good first guess: the lowest energy is that when the electron is alone
+	## with the nucleus (the other electrons' repulsion only increase it) and this is just
+	## the energy in a Hydrogen atom if it had atomic number Z, which is Z^2/2 in Hartree atomic units
+	self.E = -(_Z**2)*0.5-0.5
+
+	self.Emax = -1e-3  # don't let it become zero
+	# the electrons close to the nucleus are pulled by the nucleus and repelled by the outer electrons
+	# they can have very negative energies
+	self.Emin = -_Z**2*100 # make minimum allowed energy 200 times as large as the Hydrogen atom with atomic number Z
+
 	self.Z = _Z
 	self.r = _r
 	self.V = Vcoulomb(self.r, self.Z)
@@ -588,6 +600,39 @@ def plotPotential(r, V, Vhf, name):
     #plt.show()
     plt.savefig(name, transparent = True)
 
+from scipy.optimize import curve_fit
+def zFitFunction(r, Z, C1, C2, C3):
+    return -Z/r + (C1 + C2/r)*np.exp(-C3*r)
+
+def fitPotential(r, V, Vhf, name):
+    idx = np.where(r > 1)
+    idx = idx[0][0]
+    idxn = np.where(r > 0.1)
+    idxn = idxn[0][0]
+    plt.clf()
+    Vtot = np.zeros(len(r))
+    plt.plot(r[idxn:idx], V[idxn:idx], 'r--', linewidth=2, label='Coulomb potential')
+    plt.plot(r[idxn:idx], Vhf[idxn:idx], 'g--', linewidth=2, label='HF potential')
+    Vtot = V + Vhf
+    plt.plot(r[idxn:idx], Vtot[idxn:idx], 'b-', linewidth=2, label='Total')
+    fitParams = curve_fit(zFitFunction, r, Vtot)
+    Zeff = fitParams[0][0]
+    C1 = fitParams[0][1]
+    C2 = fitParams[0][2]
+    C3 = fitParams[0][3]
+    print "------> Potential can be fit as -Z_{eff}/r + (C_{1} + C_{2}/r)exp(-C_{3} r), where Z_{eff}, C_{1}, C_{2}, C_{3} = ", Zeff, C1, C2, C3
+    Vfit = np.zeros(len(r))
+    for z in range(0, len(r)):
+        Vfit[z] = zFitFunction(r[z], Zeff, C1, C2, C3)
+    plt.plot(r[idxn:idx], Vfit[idxn:idx], 'b-.', linewidth=3, label='Fit')
+    plt.legend(('Coulomb potential', 'HF potential', 'Total', 'Fit with $Z_{eff},C_{1},C_{2},C_{3}=%.3f,%.3f,%.3f,%.3f$' % (Zeff, C1, C2, C3)), frameon=False)
+    plt.xlabel('$r$')
+    plt.ylabel('$V(r)$')
+    plt.title('')
+    plt.draw()
+    #plt.show()
+    plt.savefig(name, transparent = True)
+
 # plot R(r)
 # R_0 is the wave function with boundary conditions in r = 0
 # R_infinity is the wave function with boundary conditions in r = infinity
@@ -664,7 +709,7 @@ def calculateTotalEnergy(orbitalList):
 # the derivative in the Schr. equation now are taken as a function of
 # x = ln(Z*r) (that is: r = exp(x)/Z)
 # dx/dr = 1/r (that is: dr/dx = r)
-r = init(N, xmin, Z)
+r = init(N, xmin, C = 2.0)
 
 # make orbital configuration
 # for Helium: 1s^2
@@ -677,8 +722,10 @@ r = init(N, xmin, Z)
 # Z is used in Coulomb potential
 orb = {}
 orb['1s'] = []
-orb['1s'].append(Orbital(_n = 1, _l = 0, _Z = Z, _r = r, _spin = 0.5))
-orb['1s'].append(Orbital(_n = 1, _l = 0, _Z = Z, _r = r, _spin = -0.5))
+orb['1s'].append(Orbital(_n = 1, _l = 0, _Z = Z, _r = r, _spin = 0.5))   # stop here for H
+orb['1s'].append(Orbital(_n = 1, _l = 0, _Z = Z, _r = r, _spin = -0.5))  # stop here for He
+#orb['2s'] = []
+#orb['2s'].append(Orbital(_n = 2, _l = 0, _Z = Z, _r = r, _spin = 0.5))   # stop here for Li
 
 E_gs_old = 0
 hfIter = 0
@@ -708,7 +755,18 @@ while hfIter < 30:
 	    k += 1
     
     # plot potential
-    plotPotential(r, orb['1s'][0].V, orb['1s'][0].Vhf, 'potential_hfIter'+str(hfIter)+'.eps')
+    keys = orb.keys()
+    highestE = -999999999
+    externOrb = ''
+    externIdx = -1
+    for k in keys:
+        for item in orb[k]:
+            if orb[k][item].E > highestE:
+	        highestE = orb[k][item].E
+		externOrb = k
+		externIdx = item
+    plotPotential(r, orb[externOrb][externIdx].V, orb[externOrb][externIdx].Vhf, 'potential_hfIter'+str(hfIter)+'.eps')
+    fitPotential(r, orb[externOrb][externIdx].V, orb[externOrb][externIdx].Vhf, 'potentialFit_hfIter'+str(hfIter)+'.eps')
 
     # calculate ground state energy
     E_gs = calculateTotalEnergy(orb)
