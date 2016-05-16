@@ -612,7 +612,7 @@ def plotWaveFunction(r, psi_0, psi_inf, psi_final, n, l, name):
     plt.plot(r[0:idx], psi_final[0:idx], 'b--', label='$R(r)$')
     if n < 4:
         plt.plot(r[0:idx], exact[0:idx], 'g--', label='Hydrogen exact n='+str(n)+',l='+str(l))
-        plt.legend(('$R_0(r)$', '$R_{\\infinty}(r)$', '$R(r)$', 'Hydrogen exact n='+str(n)+',l='+str(l)), frameon=False)
+        plt.legend(('$R_0(r)$', '$R_{\\infty}(r)$', '$R(r)$', 'Hydrogen exact n='+str(n)+',l='+str(l)), frameon=False)
     else:
         plt.legend(('$R(r)$', '$R_{\\infty}(r)$', '$R(r)$'), frameon=False)
     plt.xlabel('$r$')
