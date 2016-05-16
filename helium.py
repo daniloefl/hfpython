@@ -17,7 +17,8 @@ dx = 1e-3
 
 # precision required when scanning energies
 # change in energies in separate steps must be < eps for convergence
-eps = 1e-10
+#eps = 1e-10
+eps = 1e-5
 
 # atomic number
 Z = 2
@@ -481,7 +482,7 @@ class Orbital:
 	    for orbPsi in orbitalList[orbitalName]: # go through electrons in each of the orbital (ie: 1s1, 1s2)
 	        # now calculate Vex = sum_orb integral psi_this(r) psi_other(r') 1/(r-r') dr'
 		# for Vex, only consider orbitals with same spin
-		if orbPsi.spin == self.spin:
+		if orbPsi.spin != self.spin:
 		    continue
 
                 # calculate Vex(r) * W_other(r) = int W_this(r')*W_other(r')*1/(r-r') dV W_other(r)
@@ -550,8 +551,8 @@ class Orbital:
                 thisVhf -= Vex
 	# this (alledgedly) helps in the convergence
 	# should be just this otherwise:
-	self.Vhf = thisVhf
-	#self.Vhf = 0.7*self.Vhf + 0.3*thisVhf
+	#self.Vhf = thisVhf
+	self.Vhf = 0.7*self.Vhf + 0.3*thisVhf
                 
 
 def plotPotential(r, V, Vhf, name):
