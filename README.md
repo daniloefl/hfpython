@@ -46,4 +46,3 @@ case it is probably better not to use a logarithmid Grid and that requires chang
 One could also add the angular dependence in the results (they are assumed to be separable and as in Hydrogen, so there
 is no calculation for them, but perhaps it would be nice to include them in the visualisation, by taking the Hydrogen results from tables).
 
-be nice to 
