@@ -33,7 +33,11 @@ Hartree-Fock solver in Python with optimisations to improve convergence
     energy for Helium and for a Z=2 atom with only one electron (which is Hydrogen, with Z=2). The difference would be
     the ionisation energy for Helium. As the ground state for Hydrogen
     with Z = 1 is -13.6 eV, and it grows with Z^2 (following the Bohr model), then the Hydrogen ground state with Z=2 would
-    be 4*(-13.6) = 54.4. The ionisation energy of Helium would then be 79 eV - 54.4 eV = 24.6 eV (close to the experimental value).
+    be 4*(-13.6) = 54.4. The ionisation energy of Helium would then be 79 eV - 54.4 eV = 24.6 eV.
+
+    See tests/solutions.txt and tests/He/*.eps for results using this code. The error obtained in the Helium first ionisation
+    energy, compared to experimental data, is ~ 1.5%.
+    Bransden & Joachain (Physics of atoms and molecules) quotes an error of 1.4% for Helium due to correlation effects ignored here.
 
     This can be extended to different atoms, by changing the instantiation of Orbital() classes in the end and changing the value of Z.
 

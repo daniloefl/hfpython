@@ -10,3 +10,9 @@ Test solutions:
   * That means:
     -> He first ionisation energy = -79.4912730619 eV - (-54.4188196994 eV) = -25.072453362500006 eV
     -> He second ionisation energy = He^{+} ionisation energy = -54.4188196994 eV
+    -> He first ionisation energy according to https://www.webelements.com/helium/atoms.html:
+      -> I_p = 2372.3 [kJ/mol]
+      -> 1 kJ/mol = 1.04e-2 eV
+      -> I_p = 24.67192 eV
+      -> error in Hartree-Fock method: 1.59750 %
+    -> He^+ results should be exact except for numerical errors (no Hartree-Fock potential, so no correlation energy effects there)
