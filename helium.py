@@ -484,20 +484,20 @@ class Orbital:
 		# Define a "charge density" rho(r) = W_this(r)W_other(r)/r
 	        # We can use Gauss' law (e0 = 1) to arrive at the integral above:
 		# div E = rho(r)
-		# Vd(r) = int rho(r) dV = int div E dV = int E . dS
+		# Vex(r) = int rho(r) dV = int div E dV = int E . dS
 		# now we only need to find the "electric field"
 		# and integrate it (in surface and not volume!)
 		# int E . dS = Q(S)/(4*pi*r^2), where Q(S) is the charge
 		# contained in the surface S (because rho(r) is radial)
 		# Q(S) = int rho(r) dV = 4*pi* sum_r=0^S rho(r)*r^2*dr
-		# so Vd(r) will be the line integral:
-		# Vd(r) = int E . dl = sum_r'=inf^r Q(S)/(4*pi*r^2) dr
+		# so Vex(r) will be the line integral:
+		# Vex(r) = int E . dl = sum_r'=inf^r Q(S)/(4*pi*r^2) dr
 		#
 		# So, in summary:
 		# 0) calculate rho(r) = W_this(r)W_other(r)/r
 		# 1) calculate Q(r) = 4*pi*sum_r'=0^r rho(r)*r^2*dr
 		# 2) calculate E(r) = Q(r)/(4*pi*r^2)
-		# 3) calculate Vd(r) = sum_r'=inf^r E(r)*dr
+		# 3) calculate Vex(r) = sum_r'=inf^r E(r)*dr
                 E = np.zeros(len(self.r))
                 rho = np.zeros(len(self.r))
 		for z in range(0, len(self.r)):
@@ -525,25 +525,27 @@ class Orbital:
 		# now integrate backwards
 		# Vex(r) = int_inf^r E(r') dr'
 		# Vex(r-h) = int_inf^r E(r') dr' + int_r^r-h E(r') dr'
-		# Vex(r-h) = Vd(r) + E(r)*dr
+		# Vex(r-h) = Vex(r) + E(r)*dr
 		for z in reversed(range(0, len(self.r)-1)):
                     Vex[z] = Vex[z+1] + E[z]*(self.r[z+1] - self.r[z])
                 thisVhf -= Vex
 	# this (alledgedly) helps in the convergence
 	# should be just this otherwise:
-	# self.Vhf = thisVhf
-        self.Vhf = 0.7*self.Vhf + 0.3*thisVhf
+	self.Vhf = thisVhf
+	#self.Vhf = 0.7*self.Vhf + 0.3*thisVhf
                 
 
 def plotPotential(r, V, Vhf, name):
-    idx = np.where(r > 2)
+    idx = np.where(r > 1)
     idx = idx[0][0]
+    idxn = np.where(r > 0.1)
+    idxn = idxn[0][0]
     plt.clf()
     Vtot = np.zeros(len(r))
-    plt.plot(r[0:idx], V[0:idx], 'r--', label='Coulomb potential')
-    plt.plot(r[0:idx], Vhf[0:idx], 'g--', label='HF potential')
+    plt.plot(r[idxn:idx], V[idxn:idx], 'r--', label='Coulomb potential')
+    plt.plot(r[idxn:idx], Vhf[idxn:idx], 'g--', label='HF potential')
     Vtot = V + Vhf
-    plt.plot(r[0:idx], Vtot[0:idx], 'b-', label='Total')
+    plt.plot(r[idxn:idx], Vtot[idxn:idx], 'b-', label='Total')
     plt.legend(('Coulomb potential', 'HF potential', 'Total'), frameon=False)
     plt.xlabel('$r$')
     plt.ylabel('$|V(r)|$')
@@ -587,15 +589,15 @@ def plotWaveFunction(r, psi_0, psi_inf, psi_final, n, l, name):
     idx = idx[0][0]
     plt.clf()
     plt.plot(r[0:idx], psi_0[0:idx], 'r:', label='$R_{0}(r)$')
-    plt.plot(r[0:idx], psi_inf[0:idx], 'r:', label='$R_{\\infinty}(r)$')
+    plt.plot(r[0:idx], psi_inf[0:idx], 'r:', label='$R_{\\infty}(r)$')
     plt.plot(r[0:idx], psi_final[0:idx], 'b--', label='$R(r)$')
     if n < 4:
         plt.plot(r[0:idx], exact[0:idx], 'g--', label='Hydrogen exact n='+str(n)+',l='+str(l))
         plt.legend(('$R_0(r)$', '$R_{\\infinty}(r)$', '$R(r)$', 'Hydrogen exact n='+str(n)+',l='+str(l)), frameon=False)
     else:
-        plt.legend(('$R(r)$', '$R_{\\infinty}(r)$', '$R(r)$'), frameon=False)
+        plt.legend(('$R(r)$', '$R_{\\infty}(r)$', '$R(r)$'), frameon=False)
     plt.xlabel('$r$')
-    plt.ylabel('$|R(r)|$')
+    plt.ylabel('$R(r)$')
     plt.title('')
     plt.draw()
     #plt.show()
