@@ -18,7 +18,7 @@ dx = 1e-3
 # precision required when scanning energies
 # change in energies in separate steps must be < eps for convergence
 #eps = 1e-10
-eps = 1e-5
+eps = 1e-3
 
 # atomic number
 Z = 2
@@ -412,15 +412,20 @@ class Orbital:
     # For Helium, Vex = Vd/2, from the Virial Theorem, so we just need
     # to return Vd/2
     def loadHartreeFockPotential(self, orbitalList, orbKey):
+        print "in load HF", orbKey, self.spin
         thisVhf = np.zeros(len(self.r))
+
+	thisVd = np.zeros(len(r))
         for orbitalName in orbitalList: # go through 1s, 2s, 2p, etc.
+	    k = 0
 	    for orbPsi in orbitalList[orbitalName]: # go through electrons in each of the orbital (ie: 1s1, 1s2)
+	        k += 1
 	        # now calculate Vhf = sum_orb integral psi_orb(r) psi_orb(r') 1/(r-r') dr'
 		# for Vd, consider all orbitals, including this one
-		# (could exclude this one for Helium and remove Vex below,
-		# because for Helium there is a cancellation)
+		#### but my own term cancels out by Vex, so remove it to make it faster
 		#if orbitalName == orbKey and orbPsi.spin == self.spin:
 		#    continue
+	        print orbitalName, orbPsi.spin
 
                 # calculate Vd(r) * W_this(r) = int W(r')*W(r')*1/(r-r') dV *W_this(r)
 		# the W_this(r) part is already part of the Schr. equation
@@ -455,9 +460,9 @@ class Orbital:
 		        dr = self.r[z] - self.r[z-1]
 		    else:
 		        dr = self.r[z]
-		    Q += 4*np.pi*rho[z]*self.r[z]**2*dr
+		    Q += rho[z]*self.r[z]**2*dr
 		    # this is E:
-		    E[z] = Q/(4*np.pi*self.r[z]**2)
+		    E[z] = Q/(self.r[z]**2)
                 Vd = np.zeros(len(self.r))
 		# now Vd will be integrated as sum r'=inf^r E(r) dr
 		# in principle Vd = 0 for r = inf,
@@ -465,7 +470,8 @@ class Orbital:
 		# in any case, the potential in r = r_max is due
 		# to the charge contained
 		# in r_max:
-		Vd[len(self.r)-1] = E[len(self.r)-1]*self.r[len(self.r)-1]
+		#Vd[len(self.r)-1] = E[len(self.r)-1]*self.r[len(self.r)-1]
+		Vd[len(self.r)-1] = Q/self.r[len(self.r)-1]
 		# now integrate backwards
 		# Vd(r) = int_inf^r E(r') dr'
 		# Vd(r-h) = int_inf^r E(r') dr' + int_r^r-h E(r') dr'
@@ -475,14 +481,17 @@ class Orbital:
 		# for Helium, final Vhf = 0.5 Vd
 		# not calculating Vex now: this makes it specific to Helium
 		# the fact that Vex = 0.5 Vd is only true for Helium
-                thisVhf += Vd
+                thisVhf += 0.5*Vd ## I have no idea why I need 1/2 here!
+		thisVd += 0.5*Vd
 
         # now calculate Vex
+	thisVex = np.zeros(len(r))
         for orbitalName in orbitalList: # go through 1s, 2s, 2p, etc.
 	    for orbPsi in orbitalList[orbitalName]: # go through electrons in each of the orbital (ie: 1s1, 1s2)
 	        # now calculate Vex = sum_orb integral psi_this(r) psi_other(r') 1/(r-r') dr'
 		# for Vex, only consider orbitals with same spin
-		if orbPsi.spin != self.spin:
+		#### exclude myself, as my own term cancels out with Vd above and the Vd term has been removed
+		if orbPsi.spin != self.spin:# or (orbitalName == orbKey and orbPsi.spin == self.spin):
 		    continue
 
                 # calculate Vex(r) * W_other(r) = int W_this(r')*W_other(r')*1/(r-r') dV W_other(r)
@@ -524,9 +533,9 @@ class Orbital:
 		        dr = self.r[z] - self.r[z-1]
 		    else:
 		        dr = self.r[z]
-		    Q += 4*np.pi*rho[z]*self.r[z]**2*dr
+		    Q += rho[z]*self.r[z]**2*dr
 		    # this is E:
-		    E[z] = Q/(4*np.pi*self.r[z]**2)
+		    E[z] = Q/(self.r[z]**2)
                 Vex = np.zeros(len(self.r))
 		# now Vex will be integrated as sum r'=inf^r E(r) dr
 		# in principle Vex = 0 for r = inf,
@@ -534,7 +543,8 @@ class Orbital:
 		# in any case, the potential in r = r_max is due
 		# to the charge contained
 		# in r_max:
-		Vex[len(self.r)-1] = E[len(self.r)-1]*self.r[len(self.r)-1]
+		#Vex[len(self.r)-1] = E[len(self.r)-1]*self.r[len(self.r)-1]
+		Vex[len(self.r)-1] = Q/self.r[len(self.r)-1]
 		# now integrate backwards
 		# Vex(r) = int_inf^r E(r') dr'
 		# Vex(r-h) = int_inf^r E(r') dr' + int_r^r-h E(r') dr'
@@ -548,7 +558,11 @@ class Orbital:
 	            else:
   		        Vex[z] = 0
 	        # and add it in
-                thisVhf -= Vex
+                thisVhf -= 0.5*Vex
+		thisVex -= 0.5*Vex
+	print "Sum Vex = ", np.sum(thisVex)
+	print "Sum Vd  = ", np.sum(thisVd)
+	print "Sum Vhf = ", np.sum(thisVhf)
 	# this (alledgedly) helps in the convergence
 	# should be just this otherwise:
 	#self.Vhf = thisVhf
@@ -562,10 +576,10 @@ def plotPotential(r, V, Vhf, name):
     idxn = idxn[0][0]
     plt.clf()
     Vtot = np.zeros(len(r))
-    plt.plot(r[idxn:idx], V[idxn:idx], 'r--', label='Coulomb potential')
-    plt.plot(r[idxn:idx], Vhf[idxn:idx], 'g--', label='HF potential')
+    plt.plot(r[idxn:idx], V[idxn:idx], 'r--', linewidth=2, label='Coulomb potential')
+    plt.plot(r[idxn:idx], Vhf[idxn:idx], 'g--', linewidth=2, label='HF potential')
     Vtot = V + Vhf
-    plt.plot(r[idxn:idx], Vtot[idxn:idx], 'b-', label='Total')
+    plt.plot(r[idxn:idx], Vtot[idxn:idx], 'b-', linewidth=2, label='Total')
     plt.legend(('Coulomb potential', 'HF potential', 'Total'), frameon=False)
     plt.xlabel('$r$')
     plt.ylabel('$V(r)$')
@@ -608,11 +622,11 @@ def plotWaveFunction(r, psi_0, psi_inf, psi_final, n, l, name):
     idx = np.where(r > 2)
     idx = idx[0][0]
     plt.clf()
-    plt.plot(r[0:idx], psi_0[0:idx], 'r:', label='$R_{0}(r)$')
-    plt.plot(r[0:idx], psi_inf[0:idx], 'r:', label='$R_{\\infty}(r)$')
-    plt.plot(r[0:idx], psi_final[0:idx], 'b--', label='$R(r)$')
+    plt.plot(r[0:idx], psi_0[0:idx], 'r--', linewidth=2, label='$R_{0}(r)$')
+    plt.plot(r[0:idx], psi_inf[0:idx], 'g--', linewidth=2, label='$R_{\\infty}(r)$')
+    plt.plot(r[0:idx], psi_final[0:idx], 'b--', linewidth=2, label='$R(r)$')
     if n < 4:
-        plt.plot(r[0:idx], exact[0:idx], 'g--', label='Hydrogen exact n='+str(n)+',l='+str(l))
+        plt.plot(r[0:idx], exact[0:idx], 'b-', linewidth=1, label='Hydrogen exact n='+str(n)+',l='+str(l))
         plt.legend(('$R_0(r)$', '$R_{\\infty}(r)$', '$R(r)$', 'Hydrogen exact n='+str(n)+',l='+str(l)), frameon=False)
     else:
         plt.legend(('$R(r)$', '$R_{\\infty}(r)$', '$R(r)$'), frameon=False)
@@ -622,6 +636,21 @@ def plotWaveFunction(r, psi_0, psi_inf, psi_final, n, l, name):
     plt.draw()
     #plt.show()
     plt.savefig(name, transparent = True)
+
+def calculateTotalEnergy(orbitalList):
+    E0 = 0
+    JmK = 0
+    for orbitalName in orbitalList: # go through 1s, 2s, 2p, etc.
+        for orbPsi in orbitalList[orbitalName]: # go through electrons in each of the orbital (ie: 1s1, 1s2)
+	    E0 += orbPsi.E # sums eigen values
+	    for z in range(0, len(orbPsi.r)):
+	        dr = 0
+		if z < len(orbPsi.r)-1:
+		    dr = orbPsi.r[z+1] - orbPsi.r[z]
+  	        JmK += orbPsi.Vhf[z]*(orbPsi.psifinal[z]**2)*(orbPsi.r[z]**2)*dr
+    print "J-K", JmK
+    E0 += -JmK
+    return E0
 
 # make Grid
 # Grid is finer close to r = 0 and wider as r -> infinity
@@ -679,6 +708,10 @@ while hfIter < 20:
     
     # plot potential
     plotPotential(r, orb['1s'][0].V, orb['1s'][0].Vhf, 'potential_hfIter'+str(hfIter)+'.eps')
+
+    # calculate ground state energy
+    E_gs = calculateTotalEnergy(orb)
+    print '-->  (HF iteration '+str(hfIter)+') Ground state energy = ', E_gs*eV, ' eV'
     
     hfIter += 1
 
