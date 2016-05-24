@@ -39,10 +39,20 @@ Hartree-Fock solver in Python with optimisations to improve convergence
     energy, compared to experimental data, is ~ 1.5%.
     Bransden & Joachain (Physics of atoms and molecules) quotes an error of 1.4% for Helium due to correlation effects ignored here.
 
-    This can be extended to different atoms, by changing the instantiation of Orbital() classes in the end and changing the value of Z.
+    This assumes a result for the Helium atom only: that the exchange potential cancels half the Coulomb potential, by symmetry.
+    This is not valid for higher Z, but the code still works for He^+ (as in this case there is only one electron and no Coulomb potential
+    is calculated).
+    See hf.py for something valid until Be.
 
-    TODO: However, at the moment, the Hartree-Fock potential has a factor of 0.5, which is necessary for the correct result.
-          I'm not sure why this factor needds to be there, but it might indicate a mistake in the implementation.
+  * hf.py
+    Same as helium.py, but this time it calculates the exchange potential correctly, instead of assuming it cancels half the Coulomb
+    potential as in helium.py.
+    One can add more Orbital() classes and change the Z value to extend it to different atoms.
+    It also plots different wave functions for different orbitals in different stages of the Hartree-Fock procedure.
+    One down side is that it ignores the angular part of the wave function for p,d and f orbitals. Therefore, the solution is only
+    expected to work (within the uncorrelated electron approximation in Hartree-Fock and the numerical precision, as well as the
+    approximation that the HF eigenfunctions all have the angular dependence as in Hydrogen) up until Be. The Coulomb and
+    exchange potentials would be incorrectly calculated for p, d and f orbitals.
 
 This would be much faster in C, but it is easier to debug it in Python. It should also be easy to play with different potentials.
 One could, for example, change hydrogen_auto.py to solve the harmonic oscillator, or to solve the equations in a 1D lattice (but in this
