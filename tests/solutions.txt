@@ -1,19 +1,18 @@
 
-Test solutions:
-  * He
-    -> E_{ground state} = -79.4912730619 eV
-    -> E_{0} = -26.9291820435 eV
-    -> E_{1} = -26.9291820435 eV
-------> Potential can be fit as -Z_{eff}/r + (C_{1} + C_{2}/r)exp(-C_{3} r), where Z_{eff}, C_{1}, C_{2}, C_{3} =  1.22209487179 -4.78114224653e-05 -0.777904337073 3.41097297351
+Helium test solutions:
+    -> E_{ground state} = -79.4688585011 eV
+    -> E_{0} = -26.1185071658 eV
+    -> E_{1} = -26.1185071658 eV
+------> Potential can be fit as -Z_{eff}/r + (C_{1} + C_{2}/r)exp(-C_{3} r), where Z_{eff}, C_{1}, C_{2}, C_{3} =  1.24592286775 1.08929822802 -0.754079929747 0.789642935823
   * He^{+}
     -> E_{ground state} = -54.4188196994 eV
     -> E_{0} = -54.4188196994 eV
   * That means:
-    -> He first ionisation energy = -79.4912730619 eV - (-54.4188196994 eV) = -25.072453362500006 eV
+    -> He first ionisation energy = -79.4688585011 eV - (-54.4188196994 eV) = -25.050038801700005 eV
     -> He second ionisation energy = He^{+} ionisation energy = -54.4188196994 eV
     -> He first ionisation energy according to https://www.webelements.com/helium/atoms.html:
       -> I_p = 2372.3 [kJ/mol]
       -> 1 kJ/mol = 1.04e-2 eV
       -> I_p = 24.67192 eV
-      -> error in Hartree-Fock method: 1.59750 %
+      -> error in Hartree-Fock method: 1.5094 %
     -> He^+ results should be exact except for numerical errors (no Hartree-Fock potential, so no correlation energy effects there)
