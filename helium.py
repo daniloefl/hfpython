@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 # atomic number
 Z = 1  # stop here for H
 Z = 2  # stop here for He
-#Z = 3  # stop here for Li
 
 # also change below to get the orbital configuration of the electrons
 # consistent with this ...
@@ -43,7 +42,7 @@ xmin = np.log(1e-4)
 # rmax = 5.98 a_0
 # (r is in Bohr radius units (a_0) ... here a_0 = 1)
 # (6 Hydrogen atom radii seem reasonable, bu with N =14000, you can get 120 H radii)
-N = 12000
+N = 15000
 
 
 # factorial
@@ -464,7 +463,7 @@ class Orbital:
                 E = np.zeros(len(self.r))
                 rho = np.zeros(len(self.r))
 		for z in range(0, len(self.r)):
-		    rho[z] = orbPsi.psifinal[z]**2/self.r[z]
+		    rho[z] = orbPsi.psifinal[z]**2
                 Q = 0
 		for z in range(0, len(self.r)):
 		    dr = 0
@@ -493,86 +492,9 @@ class Orbital:
 		# for Helium, final Vhf = 0.5 Vd
 		# not calculating Vex now: this makes it specific to Helium
 		# the fact that Vex = 0.5 Vd is only true for Helium
-                thisVhf += 0.5*Vd ## I have no idea why I need 1/2 here!
+                thisVhf += 0.5*Vd
 		thisVd += 0.5*Vd
 
-        # now calculate Vex
-	thisVex = np.zeros(len(r))
-        for orbitalName in orbitalList: # go through 1s, 2s, 2p, etc.
-	    for orbPsi in orbitalList[orbitalName]: # go through electrons in each of the orbital (ie: 1s1, 1s2)
-	        # now calculate Vex = sum_orb integral psi_this(r) psi_other(r') 1/(r-r') dr'
-		# for Vex, only consider orbitals with same spin
-		#### exclude myself, as my own term cancels out with Vd above and the Vd term has been removed
-		if orbPsi.spin != self.spin:# or (orbitalName == orbKey and orbPsi.spin == self.spin):
-		    continue
-
-                # calculate Vex(r) * W_other(r) = int W_this(r')*W_other(r')*1/(r-r') dV W_other(r)
-		# notice that, differently from Vd, the potential is multiplying W_other, not W_this
-		# so we calculate Vex(r) and then multiply it by W_other/W_this, so that we can add
-		# this in a(x), which is multiplying W_this
-		# in this way, the potential is added as (Vex(r)*W_other(r)/W_this(r))
-		# and the multiplication by W_this(r) in the Schr. equation (it multiplies the potential)
-		# will cancel the denominator out
-		# this has the draw back that if W_this is negative, it will fail spectacularly ...
-		# this is similar to an electrostatics problem
-		# Define a "charge density" rho(r) = W_this(r)W_other(r)/r
-	        # We can use Gauss' law (e0 = 1) to arrive at the integral above:
-		# div E = rho(r)
-		# Vex(r) = int rho(r) dV = int div E dV = int E . dS
-		# now we only need to find the "electric field"
-		# and integrate it (in surface and not volume!)
-		# int E . dS = Q(S)/(4*pi*r^2), where Q(S) is the charge
-		# contained in the surface S (because rho(r) is radial)
-		# Q(S) = int rho(r) dV = 4*pi* sum_r=0^S rho(r)*r^2*dr
-		# so Vex(r) will be the line integral:
-		# Vex(r) = int E . dl = sum_r'=inf^r Q(S)/(4*pi*r^2) dr
-		#
-		# So, in summary:
-		# 0) calculate rho(r) = W_this(r)W_other(r)/r
-		# 1) calculate Q(r) = 4*pi*sum_r'=0^r rho(r)*r^2*dr
-		# 2) calculate E(r) = Q(r)/(4*pi*r^2)
-		# 3) calculate Vex(r) = sum_r'=inf^r E(r)*dr
-                E = np.zeros(len(self.r))
-                rho = np.zeros(len(self.r))
-		for z in range(0, len(self.r)):
-		    # orbPsi is "other"
-		    # self is "this"
-		    rho[z] = orbPsi.psifinal[z]*self.psifinal[z]/self.r[z]
-                Q = 0
-		for z in range(0, len(self.r)):
-		    dr = 0
-		    if z >= 1:
-		        dr = self.r[z] - self.r[z-1]
-		    else:
-		        dr = self.r[z]
-		    Q += rho[z]*self.r[z]**2*dr
-		    # this is E:
-		    E[z] = Q/(self.r[z]**2)
-                Vex = np.zeros(len(self.r))
-		# now Vex will be integrated as sum r'=inf^r E(r) dr
-		# in principle Vex = 0 for r = inf,
-		# but we can choose any reference we want
-		# in any case, the potential in r = r_max is due
-		# to the charge contained
-		# in r_max:
-		#Vex[len(self.r)-1] = E[len(self.r)-1]*self.r[len(self.r)-1]
-		Vex[len(self.r)-1] = Q/self.r[len(self.r)-1]
-		# now integrate backwards
-		# Vex(r) = int_inf^r E(r') dr'
-		# Vex(r-h) = int_inf^r E(r') dr' + int_r^r-h E(r') dr'
-		# Vex(r-h) = Vex(r) + E(r)*dr
-		for z in reversed(range(0, len(self.r)-1)):
-                    Vex[z] = Vex[z+1] + E[z]*(self.r[z+1] - self.r[z])
-		# now scale Vex by W_other/W_this, so it can be added in the potential multiplying W_this
-		for z in range(0, len(self.r)):
-		    if self.psifinal[z] != 0:
-  		        Vex[z] *= orbPsi.psifinal[z]/self.psifinal[z]
-	            else:
-  		        Vex[z] = 0
-	        # and add it in
-                thisVhf -= 0.5*Vex
-		thisVex -= 0.5*Vex
-	print "Sum Vex = ", np.sum(thisVex)
 	print "Sum Vd  = ", np.sum(thisVd)
 	print "Sum Vhf = ", np.sum(thisVhf)
 	# this (alledgedly) helps in the convergence
@@ -692,6 +614,7 @@ def calculateTotalEnergy(orbitalList):
 	        dr = 0
 		if z < len(orbPsi.r)-1:
 		    dr = orbPsi.r[z+1] - orbPsi.r[z]
+		# ignoring Vex, as it is already included by doing 0.5*Vd in He
   	        JmK += orbPsi.Vhf[z]*(orbPsi.psifinal[z]**2)*(orbPsi.r[z]**2)*dr
     print "J-K", JmK
     E0 += -0.5*JmK
@@ -724,8 +647,6 @@ orb = {}
 orb['1s'] = []
 orb['1s'].append(Orbital(_n = 1, _l = 0, _Z = Z, _r = r, _spin = 0.5))   # stop here for H
 orb['1s'].append(Orbital(_n = 1, _l = 0, _Z = Z, _r = r, _spin = -0.5))  # stop here for He
-#orb['2s'] = []
-#orb['2s'].append(Orbital(_n = 2, _l = 0, _Z = Z, _r = r, _spin = 0.5))   # stop here for Li
 
 E_gs_old = 0
 hfIter = 0
