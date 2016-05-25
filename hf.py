@@ -9,8 +9,9 @@ import sys
 # atomic number
 Z = 1  # stop here for H
 Z = 2  # stop here for He
-#Z = 3  # stop here for Li
-#Z = 4
+Z = 3  # stop here for Li
+Z = 4  # stop here for Be
+Z = 5  # stop here for B
 
 # also change below to get the orbital configuration of the electrons
 # consistent with this ...
@@ -164,6 +165,7 @@ class Orbital:
     psifinal = None # final, normalised R(r) function (full radial WF is r*R(r))
 
     spin = 0       # spin of this particle
+    prev_dE = 0
 
     def __init__(self, _n, _l, _Z, _r, _spin):
         self.n = _n
@@ -318,16 +320,28 @@ class Orbital:
           dE = -0.1e-1
         # recalculate the solution with a slihtly varied E
         [ap, fp, sp, iclp] = getAF(r, pot, indepTerm, E+dE, l, m)
-        [y_ep, no_ep] = self.outwardSolution(r, m, sp, dx, E, n, l, Z, fp)
-        [yp_ep, nop_ep] = self.inwardSolution(r, m, sp, dx, E, n, l, Z, fp, y_ren[len(r)-1])
+        [y_ep, no_ep] = self.outwardSolution(r, m, sp, dx, E+dE, n, l, Z, fp)
+        [yp_ep, nop_ep] = self.inwardSolution(r, m, sp, dx, E+dE, n, l, Z, fp, y_ren[len(r)-1])
         y_ep_ren = self.matchInOut(y_ep, yp_ep, icl)
+
+        # get delta E using condition that y[infinity] from outward integration is zero
+	# this is the backup method in case comparing the functions at icl fails
+	# F(E) = y[infinity] - 0
+        dE_inf = 0.1*E
+        # recalculate the solution with a slihtly varied E
+        [ap_inf, fp_inf, sp_inf, iclp_inf] = getAF(r, pot, indepTerm, E+dE_inf, l, m)
+        [y_ep_inf, no_ep_inf] = self.outwardSolution(r, m, sp, dx, E+dE_inf, n, l, Z, fp)
+        [yp_ep_inf, nop_ep_inf] = self.inwardSolution(r, m, sp, dx, E+dE_inf, n, l, Z, fp, y_ren[len(r)-1])
+        y_ep_ren_inf = self.matchInOut(y_ep_inf, yp_ep_inf, icl)
+        F_curr = y[len(r)-1]
+	F_diff = y_ep_inf[len(r)-1] - y[len(r)-1]
+	bestdE_inf = -F_curr*dE/F_diff
+
 	if np.isnan(yp_ep[0]) or np.isnan(yp[0]) or np.isinf(yp_ep[0]) or np.isinf(yp[0]):
 	    # the inward solution is too unstable
 	    # use the requirement that the outwad solution must match zero at infinity instead
 	    # F(E) = y[infinity] - 0
-            F_curr = y[len(r)-1]
-	    F_diff = y_ep[len(r)-1] - y[len(r)-1]
-	    bestdE = -F_curr*dE/F_diff
+	    bestdE = bestdE_inf
             y_ren = y
 	    yp = y
 	    nop = no
@@ -343,16 +357,14 @@ class Orbital:
 	    #    # the inward solution is too unstable
 	    #    # use the requirement that the outwad solution must match zero at infinity instead
 	    #    # F(E) = y[infinity] - 0
-            #    F_curr = y[len(r)-1]
-	    #    F_diff = y_ep[len(r)-1] - y[len(r)-1]
-	    #    bestdE = -F_curr*dE/F_diff
+	    #    bestdE = bestdE_inf
 	    #    y_ren = y
 	    #    yp = y
 	    #    nop = no
         if icl < 0:
             bestdE = 1 # arbitrary, but must be positive to make energy less negative
         #return [y_ren, yp, icl, no, nop, bestdE]
-        return [y, yp, y_ren, icl, no, nop, bestdE]
+        return [y, yp, y_ren, icl, no, nop, bestdE, bestdE_inf]
     
     
     # return the number of zeroes expected in the solution that has n and l
@@ -363,6 +375,8 @@ class Orbital:
     # loop over energies to solve the Schr. equation and adapt the energy until a consistent
     # solution is found and a valid energy is available
     def solveWithCurrentPotential(self, label = 1):
+        Nscale = 10.0
+	mismatchNodes = False
         for i in range(0, self.Niter):
 	    # solve Schroedinger equation using self.E as energy guess
 	    # solves it using Numerov's method assuming initial solution at r->0 (y) and
@@ -374,7 +388,7 @@ class Orbital:
 	    # are consistent.
             # as they are not, the discrepancy is used to return the "bestdE", which has the variation one
 	    # should apply in the energy to get a better solution, to first order
-            [self.y, self.yp, self.yfinal, self.icl, self.no, self.nop, bestdE] = self.solve(self.r, self.V + self.Vd, self.Vex, self.n, self.l, self.E, self.Z)
+            [self.y, self.yp, self.yfinal, self.icl, self.no, self.nop, bestdE, bestdE_inf] = self.solve(self.r, self.V + self.Vd, self.Vex, self.n, self.l, self.E, self.Z)
 
             dE = 0 # delta E to be used to shift energy
 
@@ -390,21 +404,34 @@ class Orbital:
 		# and shift the energy to some value far far away
 	        self.Emax = self.E
 	        dE = (self.Emax + self.Emin)*0.5 - self.E
+		mismatchNodes = False
             elif self.no == self.nop and self.no < self.nodes(self.n, self.l):
 	        # don't let us go below the current energy again, as it gives the wrong solution
 		# and shift the energy to some value far far away
 	        self.Emin = self.E
 	        dE = (self.Emax + self.Emin)*0.5 - self.E
-	    #elif self.no != self.nop:
-	    #    print "DANGER! DANGER! DANGER!"
-	    #    sys.exit(-1)
+		mismatchNodes = False
+	    elif self.no != self.nop:
+	        print "DANGER! DANGER! DANGER!"
+		print "Outward integration with ", self.no, " nodes, while inward integration with ", self.nop, "nodes."
+		print "Going to proceed now by going back to previous energy and bisecting all future energy steps, so the scan in energy can be finer."
+		# go back to where we were before, stepping back
+		dE = -self.prev_dE
+		# and also divide by 2 all next steps after we get out of this funny place
+		# so we scan energy in a finer bin
+		# but mark this event, so we don't bisect it twice in sequence or we will artificially converge
+		if not mismatchNodes:
+		    Nscale *= 2.0
+	        mismatchNodes = True
+	        #sys.exit(-1)
             else: # number of nodes is ok, but the energy needs to be adjusted
 	        # in principle we could use the bestdE above as a shift
 		# but it is too much sometimes, so let's soften it so we don't go too far away
-                dE = 1e-1*bestdE
+                dE = 1.0/Nscale*bestdE
 		# don't let it anyway give us a too big shift, otherwise this never converges
 	        if np.fabs(dE) > 1.0:
 	            dE = 1.0*dE/np.fabs(dE)
+		mismatchNodes = False
 
             if debug or i % 50 == 0:
                 print "->  Iteration ", i, ", E = ", self.E, ", dE = ", dE, ", nodes = ", self.no, self.nop, ", expected nodes = ", self.nodes(self.n, self.l), ", crossing zero at = ", self.icl
@@ -421,6 +448,7 @@ class Orbital:
   	        plotWaveFunction(r, psi, psip, self.psifinal, self.n, self.l, 'lastwf.eps')
 
             # increment the energy now
+	    self.prev_dE = dE
             self.E += dE
 	    # and cap it so it doesn't go crazy
             if dE > 0 and self.E > self.Emax:
@@ -430,7 +458,7 @@ class Orbital:
             #print "E, Emax, Emin = " , E, Emax, Emin
 	    # if the delta E is too small, stop
             #if np.fabs(dE) < 1e-12 or np.fabs(self.Emax - self.Emin) < 1e-5:
-            if np.fabs(dE) < eps or np.fabs(self.Emax - self.Emin) < 1e-5:
+            if not mismatchNodes and (np.fabs(dE) < eps or np.fabs(self.Emax - self.Emin) < 1e-5):
                 print "Converged to energy ", self.E*eV, " eV"
                 break
 
@@ -704,7 +732,7 @@ def plotWaveFunction(r, psi_0, psi_inf, psi_final, n, l, name, limit = True):
         plt.plot(r[0:idx], exact[0:idx], 'b-', linewidth=1, label='Hydrogen exact n='+str(n)+',l='+str(l))
         plt.legend(('$R_0(r)$', '$R_{\\infty}(r)$', '$R(r)$', 'Hydrogen exact n='+str(n)+',l='+str(l)), frameon=False)
     else:
-        plt.legend(('$R(r)$', '$R_{\\infty}(r)$', '$R(r)$'), frameon=False)
+        plt.legend(('$R_0(r)$', '$R_{\\infty}(r)$', '$R(r)$'), frameon=False)
     plt.xlabel('$r$')
     plt.ylabel('$R(r)$')
     plt.title('')
@@ -758,9 +786,11 @@ orb = {}
 orb['1s'] = []
 orb['1s'].append(Orbital(_n = 1, _l = 0, _Z = Z, _r = r, _spin = 1))   # stop here for H
 orb['1s'].append(Orbital(_n = 1, _l = 0, _Z = Z, _r = r, _spin = -1))  # stop here for He
-#orb['2s'] = []
-#orb['2s'].append(Orbital(_n = 2, _l = 0, _Z = Z, _r = r, _spin = 1))   # stop here for Li
-#orb['2s'].append(Orbital(_n = 2, _l = 0, _Z = Z, _r = r, _spin = -1))   # stop here for Be
+orb['2s'] = []
+orb['2s'].append(Orbital(_n = 2, _l = 0, _Z = Z, _r = r, _spin = 1))   # stop here for Li
+orb['2s'].append(Orbital(_n = 2, _l = 0, _Z = Z, _r = r, _spin = -1))  # stop here for Be
+orb['2p'] = []
+orb['2p'].append(Orbital(_n = 2, _l = 1, _Z = Z, _r = r, _spin = 1))   # stop here for B
 
 E_gs_old = 0
 hfIter = 0
