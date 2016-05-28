@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 eV = 27.2113966413442 # Hartrees
+nm = 0.052917721092 # Bohr radius
 
 # harmonic oscillator
 def V(x, k = 1.0):
@@ -140,13 +141,15 @@ def reflect(x, y):
         xr[i] = x[i-len(y)]
     return [xr, psi]
 
+eps = 1e-5
+k = 2
 n = 0
 Emax = 0
 Emin = 0
 
 E = 20
 x = init(10.0, 400)
-pot = V(x, k = 1.0)
+pot = V(x, k)
 for i in range(0, len(pot)):
   if pot[i] < Emin:
     Emin = pot[i]
@@ -176,7 +179,7 @@ for i in range(0,10):
 	    nodesList.append(i)
     if not even:
         nodes += 1
-    print "Iteration ", i, ", E = ", E, ", nodes = ", nodes, ", expected nodes = ", n, ", crossing zero at = ", icl, nodesList
+    print "Iteration ", i, ", E = ", E*eV, " eV, nodes = ", nodes, ", expected nodes = ", n, ", crossing zero at = ", icl, nodesList
 
 
     idx = np.where(x > 4)
@@ -187,20 +190,20 @@ for i in range(0,10):
     if True:
       #plt.clf()
       fig, ax1 = plt.subplots()
-      ax1.plot(xr, psi, 'r-', linewidth=2, label='$\Psi(x)$')
-      ax1.plot(xr, psi2, 'r--', linewidth=2, label='$\Psi^2(x)$')
-      ax1.set_xlabel('$x$')
-      ax1.set_ylabel('$\Psi(x)$ or $\Psi^2(x)$', color='r')
+      ax1.plot(xr*nm, psi, 'r-', linewidth=2, label='$\Psi(x)$')
+      ax1.plot(xr*nm, psi2, 'r--', linewidth=2, label='$\Psi^2(x)$')
+      ax1.set_xlabel('$x$ [nm]')
+      ax1.set_ylabel('$\Psi(x)$ or $|\Psi(x)|^2$', color='r')
       for tl in ax1.get_yticklabels():
           tl.set_color('r')
       ax2 = ax1.twinx()
-      ax2.plot(xr, V_full, 'b--', linewidth=2, label='$V(x)$')
-      ax2.plot(xr, E*np.ones(len(V_full)), 'b:', linewidth=2, label='$E$')
-      ax2.set_xlabel('$x$')
-      ax2.set_ylabel('Energy', color='b')
+      ax2.plot(xr*nm, V_full*eV, 'b--', linewidth=2, label='$V(x)$')
+      ax2.plot(xr*nm, E*eV*np.ones(len(V_full)), 'b:', linewidth=2, label='$E$')
+      ax2.set_xlabel('$x$ [nm]')
+      ax2.set_ylabel('Energy [eV]', color='b')
       for tl in ax2.get_yticklabels():
           tl.set_color('b')
-      ax2.legend(('$V(x)$', '$E$'), frameon = False, loc = 'upper right')
+      ax2.legend(('$V(x)$ [eV]', '$E$ [eV]'), frameon = False, loc = 'upper right')
       ax1.legend(('Wave function', 'Probability'), frameon = False, loc = 'upper left')
       plt.title('')
       #plt.draw()
@@ -217,7 +220,7 @@ for i in range(0,10):
         elif dE < 0:
 	    Emax = E
         E += dE
-    if np.fabs(Emax - Emin) < 0.01:
+    if np.fabs(Emax - Emin) < eps:
         break
 print "Last energy ", E*eV, " eV"
     
