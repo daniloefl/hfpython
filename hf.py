@@ -48,7 +48,7 @@ xmin = np.log(1e-4)
 # (r is in Bohr radius units (a_0) ... here a_0 = 1)
 # (6 Hydrogen atom radii seem reasonable, bu with N =14000, you can get 120 H radii)
 # 13000 -> 44 H radii
-N = 15000
+N = 14000
 
 # Coulomb potential
 def Vcoulomb(r, Z):
@@ -454,6 +454,7 @@ class Orbital:
     def solveWithCurrentPotential(self, label = 1):
         self.Emax = 0
 	self.Emin = -self.Z**2-10
+	self.E = 0.5*(self.Emax+self.Emin)
         Nscale = 1.0
 	mismatchNodes = False
         for i in range(0, self.Niter):
@@ -853,11 +854,11 @@ def plotWaveFunction(r, psi_final, V, Vd, Vex, E, n, l, name, limit = True):
     ax2.plot(r[idxlp:idx]*nm, V[idxlp:idx]*eV, 'b--', linewidth=2, label='Nucleus pot.')
     ax2.plot(r[idxlp:idx]*nm, Vd[idxlp:idx]*eV, 'b-.', linewidth=2, label='HF direct pot.')
     exPot = Vex
-    for i in range(idxl, idx):
-        if np.fabs(psi_final[i]) > 1e-1:
-	    exPot[i] = exPot[i]/psi_final[i]
-	else:
-	    exPot[i] = 0
+#    for i in range(idxl, idx):
+#        if np.fabs(psi_final[i]) > 1e-1:
+#	    exPot[i] = exPot[i]/psi_final[i]
+#	else:
+#	    exPot[i] = 0
     ax2.plot(r[idxlp:idx]*nm, exPot[idxlp:idx]*eV, 'b:', linewidth=2, label='HF exchange pot.')
     ax2.plot(r[idxlp:idx]*nm, (V+Vd+exPot)[idxlp:idx]*eV, 'b-', linewidth=2, label='Total pot.')
     ax2.plot(r[idxlp:idx]*nm, E*np.ones(idx-idxlp)*eV, 'g--', linewidth=2, label='Energy')
@@ -900,7 +901,7 @@ def calculateTotalEnergy(orbitalList):
 # the derivative in the Schr. equation now are taken as a function of
 # x = ln(Z*r) (that is: r = exp(x)/Z)
 # dx/dr = 1/r (that is: dr/dx = r)
-r = init(N, xmin, C = 1.0)
+r = init(N, xmin, C = 2.0)
 
 # make orbital configuration
 # for Helium: 1s^2
