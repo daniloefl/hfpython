@@ -10,7 +10,7 @@ import sys
 Z = 1  # stop here for H
 Z = 2  # stop here for He
 Z = 3  # stop here for Li
-#Z = 4  # stop here for Be
+Z = 4  # stop here for Be
 #Z = 5  # stop here for B
 
 # also change below to get the orbital configuration of the electrons
@@ -19,7 +19,6 @@ Z = 3  # stop here for Li
 # set this to true to show individual messages when scanning the energy
 # can be annoying ...
 debug = False
-debug = True
 
 # conversion from Hartree to eV
 eV = 27.2113966413442 # 1 Hartree = 2 Rydberg, Bohr radius a_0 = 1, electron mass = 1, h/4pi = 1
@@ -146,6 +145,13 @@ def getAF(r, pot, ind, E, l, m):
     for i in range(0, len(r)):
         a[i] = 2*m*r[i]**2*(E - pot[i]) - (l+0.5)**2
 	f[i] = 1 + a[i]*dx**2/12.0
+	# ind is V_2, which is of the form sum_i C_i * R_i
+	# where R_i are wave functions for other orbitals
+	# in the equation, V_2 should be multiplying y_i, since we applied the transformation R->y
+	# for solving the equation, to express it as derivatives in x and not r and to remove the singularity in r
+	# we need to multiply V_2 by sqrt(r) to transform it into sum_i C_i * y_i instead
+	# also, looking above, we need the extra factor 2*m*r^2
+	# finally, we also include the dx^2/12 term, which is needed for Numerov's equation
   	s[i] = (dx**2)/12.0*(ind[i]*np.sqrt(r[i]))*2*m*(r[i]**2)
         if icl < 0 and i >= 1 and a[i]*a[i-1] < 0:
             icl = i
@@ -703,7 +709,7 @@ class Orbital:
   	self.Hex = 0.7*self.Hex + 0.3*thisHex
                 
 
-def plotPotential(r, V, Vhf, Vex, name):
+def plotPotential(r, V, Vhf, Vex, psi_final, name):
     idx = np.where(r > 1.5)
     idx = idx[0][0]
     idxn = np.where(r > 0.05)
@@ -712,8 +718,12 @@ def plotPotential(r, V, Vhf, Vex, name):
     Vtot = np.zeros(len(r), dtype = np.longdouble)
     plt.plot(r[idxn:idx]*nm, V[idxn:idx]*eV, 'r--', linewidth=2, label='Nucleus potential')
     plt.plot(r[idxn:idx]*nm, Vhf[idxn:idx]*eV, 'g--', linewidth=2, label='HF direct potential')
-    plt.plot(r[idxn:idx]*nm, Vex[idxn:idx]*eV, 'g-.', linewidth=2, label='HF exchange potential')
-    Vtot = V + Vhf + Vex
+    exPot = Vex
+    for i in range(idxn, idx):
+        if np.fabs(psi_final[i]) > 1e-2:
+	    exPot[i] = exPot[i]/psi_final[i]
+    plt.plot(r[idxn:idx]*nm, exPot[idxn:idx]*eV, 'g-.', linewidth=2, label='HF exchange potential')
+    Vtot = V + Vhf + exPot
     plt.plot(r[idxn:idx]*nm, Vtot[idxn:idx]*eV, 'b-', linewidth=2, label='Total')
     plt.legend(('Nucleus potential', 'HF direct potential', 'HF exchange potential', 'Total'), frameon=False, loc = 'center right')
     plt.xlabel('$r$ [nm]')
@@ -728,7 +738,7 @@ from scipy.optimize import curve_fit
 def zFitFunction(r, Z, C1, C2, C3):
     return -Z/r + (C1 + C2/r)*np.exp(-C3*r)
 
-def fitPotential(r, V, Vhf, Vex, name):
+def fitPotential(r, V, Vhf, Vex, psi_final, name):
     idx = np.where(r > 1)
     idx = idx[0][0]
     idxn = np.where(r > 0.1)
@@ -737,8 +747,12 @@ def fitPotential(r, V, Vhf, Vex, name):
     Vtot = np.zeros(len(r), dtype = np.longdouble)
     plt.plot(r[idxn:idx]*nm, V[idxn:idx]*eV, 'r--', linewidth=2, label='Nucleus potential')
     plt.plot(r[idxn:idx]*nm, Vhf[idxn:idx]*eV, 'g--', linewidth=2, label='HF direct potential')
-    plt.plot(r[idxn:idx]*nm, Vhf[idxn:idx]*eV, 'g-.', linewidth=2, label='HF exchange potential')
-    Vtot = V + Vhf + Vex
+    exPot = Vex
+    for i in range(idxn, idx):
+        if np.fabs(psi_final[i]) > 1e-2:
+	    exPot[i] = exPot[i]/psi_final[i]
+    plt.plot(r[idxn:idx]*nm, exPot[idxn:idx]*eV, 'g-.', linewidth=2, label='HF exchange potential')
+    Vtot = V + Vhf + exPot
     plt.plot(r[idxn:idx]*nm, Vtot[idxn:idx]*eV, 'b-', linewidth=2, label='Total')
     Vfit = None
     fitSuccessful = False
@@ -824,7 +838,7 @@ def plotWaveFunction(r, psi_final, V, Vd, Vex, E, n, l, name, limit = True):
     fig, ax1 = plt.subplots()
     ax1.plot(r[idxl:idx]*nm, psi_final[idxl:idx], 'r-', linewidth=2, label='$R(r)$')
     if n < 4:
-        ax1.plot(r[idxl:idx]*nm, exact[idxl:idx], 'r:', linewidth=1, label='H '+Htit)
+        ax1.plot(r[idxl:idx]*nm, exact[idxl:idx], 'r:', linewidth=1, label='H, '+Htit)
         ax1.legend(('$R(r)$', 'H '+Htit), frameon=False, loc = 'lower right')
     else:
         ax1.legend(('$R(r)$'), frameon=False, loc = 'lower right')
@@ -835,8 +849,12 @@ def plotWaveFunction(r, psi_final, V, Vd, Vex, E, n, l, name, limit = True):
     ax2 = ax1.twinx()
     ax2.plot(r[idxl:idx]*nm, V[idxl:idx]*eV, 'b--', linewidth=2, label='Nucleus pot.')
     ax2.plot(r[idxl:idx]*nm, Vd[idxl:idx]*eV, 'b-.', linewidth=2, label='HF direct pot.')
-    ax2.plot(r[idxl:idx]*nm, Vex[idxl:idx]/psi_final[idxl:idx]*eV, 'b:', linewidth=2, label='HF exchange pot.')
-    ax2.plot(r[idxl:idx]*nm, (V+Vd+Vex/psi_final)[idxl:idx]*eV, 'b-', linewidth=2, label='Total pot.')
+    exPot = Vex
+    for i in range(idxl, idx):
+        if np.fabs(psi_final[i]) > 1e-2:
+	    exPot[i] = exPot[i]/psi_final[i]
+    ax2.plot(r[idxl:idx]*nm, exPot[idxl:idx]*eV, 'b:', linewidth=2, label='HF exchange pot.')
+    ax2.plot(r[idxl:idx]*nm, (V+Vd+exPot)[idxl:idx]*eV, 'b-', linewidth=2, label='Total pot.')
     ax2.plot(r[idxl:idx]*nm, E*np.ones(idx-idxl)*eV, 'g--', linewidth=2, label='Energy')
     ax2.set_xlabel('$r$ [nm]')
     ax2.set_ylabel('Energy [eV]')
@@ -894,7 +912,7 @@ orb['1s'].append(Orbital(_n = 1, _l = 0, _Z = Z, _r = r, _spin = 1))   # stop he
 orb['1s'].append(Orbital(_n = 1, _l = 0, _Z = Z, _r = r, _spin = -1))  # stop here for He
 orb['2s'] = []
 orb['2s'].append(Orbital(_n = 2, _l = 0, _Z = Z, _r = r, _spin = 1))   # stop here for Li
-#orb['2s'].append(Orbital(_n = 2, _l = 0, _Z = Z, _r = r, _spin = -1))  # stop here for Be
+orb['2s'].append(Orbital(_n = 2, _l = 0, _Z = Z, _r = r, _spin = -1))  # stop here for Be
 #orb['2p'] = []
 #orb['2p'].append(Orbital(_n = 2, _l = 1, _Z = Z, _r = r, _spin = 1))   # stop here for B
 
@@ -936,8 +954,8 @@ while hfIter < 30:
 	        highestE = orb[k][item].E
 		externOrb = k
 		externIdx = item
-    plotPotential(r, orb[externOrb][externIdx].V, orb[externOrb][externIdx].Vd, orb[externOrb][externIdx].Vex/orb[externOrb][externIdx].psifinal, 'potential_hfIter'+str(hfIter)+'.eps')
-    fitPotential(r, orb[externOrb][externIdx].V, orb[externOrb][externIdx].Vd, orb[externOrb][externIdx].Vex/orb[externOrb][externIdx].psifinal, 'potentialFit_hfIter'+str(hfIter)+'.eps')
+    plotPotential(r, orb[externOrb][externIdx].V, orb[externOrb][externIdx].Vd, orb[externOrb][externIdx].Vex, orb[externOrb][externIdx].psifinal, 'potential_hfIter'+str(hfIter)+'.eps')
+    fitPotential(r, orb[externOrb][externIdx].V, orb[externOrb][externIdx].Vd, orb[externOrb][externIdx].Vex, orb[externOrb][externIdx].psifinal, 'potentialFit_hfIter'+str(hfIter)+'.eps')
 
     # calculate ground state energy
     E_gs = calculateTotalEnergy(orb)

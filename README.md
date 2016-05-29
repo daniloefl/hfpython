@@ -1,6 +1,20 @@
 # hfpython
 Hartree-Fock solver in Python with optimisations to improve convergence
 
+  * well.py
+    Calculates the energy levels and wave functions for a finite potential well.
+    It works similarly to harmonic.py and hydrogen.py, but the initial conditions assumed for the inward and outward integration
+    are that, psi = 0 or 1 at x->0 (depending if the number of zero crossings is even or odd) and psi = 0 at x->infinity.
+    Differently from hydrogen.py, it uses a linear grid of points (hydrogen.py uses a logarithmically spaced one).
+
+  * harmonic.py
+    Calculates the energy levels and wave functions for the harmonic oscillator.
+    It requires the number of zero crossings as an input. From that it assumes whether the function is even or odd and
+    associates the initial condition at x = 0 to be 0 or 1, depending on the case (0 if it is odd, 1 if it is even).
+    The convergence criteria is that the number of zero crossings match the required ones and that the solution from the boundary
+    condition at x = 0 matches the solution psi = 0 at x->infinity at the place where E-V changes sign, as it is done in hydrogen.py.
+    Differently from hydrogen.py, it uses a linear grid of points (hydrogen.py uses a logarithmically spaced one).
+
   * hydrogen.py
     Solves the radial equation for Hydrogen, using a logarighmic grid of points.
     Uses the Numerov method.
@@ -53,6 +67,8 @@ Hartree-Fock solver in Python with optimisations to improve convergence
     expected to work (within the uncorrelated electron approximation in Hartree-Fock and the numerical precision, as well as the
     approximation that the HF eigenfunctions all have the angular dependence as in Hydrogen) up until Be. The Coulomb and
     exchange potentials would be incorrectly calculated for p, d and f orbitals.
+    The exchange potential is added as an independent term in the HF equations.
+
 
 This would be much faster in C, but it is easier to debug it in Python. It should also be easy to play with different potentials.
 One could, for example, change hydrogen_auto.py to solve the harmonic oscillator, or to solve the equations in a 1D lattice (but in this
