@@ -10,8 +10,8 @@ import sys
 Z = 1  # stop here for H
 Z = 2  # stop here for He
 Z = 3  # stop here for Li
-Z = 4  # stop here for Be
-Z = 5  # stop here for B
+#Z = 4  # stop here for Be
+#Z = 5  # stop here for B
 
 # also change below to get the orbital configuration of the electrons
 # consistent with this ...
@@ -19,9 +19,11 @@ Z = 5  # stop here for B
 # set this to true to show individual messages when scanning the energy
 # can be annoying ...
 debug = False
+debug = True
 
 # conversion from Hartree to eV
 eV = 27.2113966413442 # 1 Hartree = 2 Rydberg, Bohr radius a_0 = 1, electron mass = 1, h/4pi = 1
+nm = 0.052917721092 # Bohr radius
 
 # size of the Grid in ln(rZ)
 dx = 1e-3
@@ -49,13 +51,6 @@ xmin = np.log(1e-4)
 # 13000 -> 44 H radii
 N = 15000
 
-
-# factorial
-def fact(n):
-    if n <= 1:
-        return 1
-    return n*fact(n-1)
-
 # Coulomb potential
 def Vcoulomb(r, Z):
     pot = np.zeros(len(r), dtype = np.longdouble)
@@ -65,7 +60,6 @@ def Vcoulomb(r, Z):
 	else:
 	    pot[i] = pot[i-1]
     return pot
-
 
 # these functions depend on the transformation R -> xi = r R -> y = 1/sqrt(r) xi = sqrt(r) R
 # they must change when changing the variable of integration (ie: the Grid)
@@ -120,13 +114,30 @@ def toPsi(x, y):
 # deriv(deriv(y)) + a * y = E * y
 # f is necessary in the Numerov method
 # icl is just the index where a changes sign (a reference for later)
-#
-# One other way of doing this is to keep the r(x) logarithm grid and try to solve
-# the eq. in terms of r, so it would be:
-# deriv(deriv(xi)) + 2 m / hbar^2 [ E - V - (hbar^2 l (l+1) ) / 2 m r^2 ] xi (r) = 0
-# in which case, a = 2 m / hbar^2 [ E - V - (hbar^2 l (l+1) ) / 2 m r^2 ] and dx is replaced by r(i) - r(i-1)
-# but in this case, the potential has a singularity close to zero
-# perhaps consider other schemes for this
+
+# y is the rescaled wave function
+# y = 1/(sqrt(r)) * xi
+# xi = r*R(r), where R(r) is the radial solution
+# the xi -> y transformation prevents a first derivative from appearing in the Schroedinger eq.
+# a and f re the temporary variables in the Numerov method
+# we want to solve deriv(deriv(y)) + [2m_e/hbar^2 r^2 (E - V)  - (l+0.5)^2 ] y = 0
+# using Numerov's method:
+# a = 2 m / hbar^2 * r^2 * (E - V)  - (l+0.5)^2
+# f = 1 + a * dx^2/12
+# y_{n+1} = ((12 - 10 f_n) y_n - f_{n-1} y_{n-1}) / f_{n+1}
+# the derivative above is a function of x, where x = log(r)
+# The original equation is:
+# - hbar^2 / (2 m) deriv(deriv(xi)) + [ V + ( hbar^2 l (l+1) ) / (2 m r^2) - E ] xi (r) = 0
+# where in the latter eq., the derivative is in relation to r.
+# if V includes terms that do not depend on y (ie: the terms in Vex)
+# then for V y = V_1 y + V_2,
+# the equation is:
+# deriv(deriv(y)) + [2m_e/hbar^2 r^2 (E - V_1)  - (l+0.5)^2 ] y - 2 m_e/hbar^2 r^2 V_2 = 0
+# deriv(deriv(y)) + [2m_e/hbar^2 r^2 (E - V_1)  - (l+0.5)^2 ] y = 2 m_e/hbar^2 r^2 V_2
+# the independent term 2 m_e/hbar^2 r^2 V_2 can be included in Numerov's method as:
+# 
+# y_{n+1} = ((12 - 10 f_n) y_n - f_{n-1} y_{n-1} + (s_{n-1} + 10 s_{n} + s_{n+1}) ) / f_{n+1}
+# where s_{n} = dx^2/12 V_2_{n} 2 m_e/hbar^2 r^2
 def getAF(r, pot, ind, E, l, m):
     icl = -1
     a = np.zeros(len(r), dtype = np.longdouble)
@@ -135,7 +146,7 @@ def getAF(r, pot, ind, E, l, m):
     for i in range(0, len(r)):
         a[i] = 2*m*r[i]**2*(E - pot[i]) - (l+0.5)**2
 	f[i] = 1 + a[i]*dx**2/12.0
-	s[i] = dx**2/12.0*ind[i]*2*m*r[i]**2
+  	s[i] = (dx**2)/12.0*(ind[i]*np.sqrt(r[i]))*2*m*(r[i]**2)
         if icl < 0 and i >= 1 and a[i]*a[i-1] < 0:
             icl = i
     return [a, f, s, icl]
@@ -152,7 +163,7 @@ class Orbital:
     nop = 0        # number of zeros in wave function integrated inward (should be n - l - 1)
     # copy of the grid r
     r = None
-    Niter = 1000   # number of iterations to use to converge on Energy in Sturm-Liouville problem
+    Niter = 10000  # number of iterations to use to converge on Energy in Sturm-Liouville problem
     
     y = None       # wave function integrated outward
     yp = None      # wave function integrated inward
@@ -166,21 +177,19 @@ class Orbital:
 
     spin = 0       # spin of this particle
     prev_dE = 0
+    prev_no = 0
 
     def __init__(self, _n, _l, _Z, _r, _spin):
         self.n = _n
 	self.l = _l
+	self.Z = _Z
 	## this is just a good first guess: the lowest energy is that when the electron is alone
 	## with the nucleus (the other electrons' repulsion only increase it) and this is just
 	## the energy in a Hydrogen atom if it had atomic number Z, which is Z^2/2 in Hartree atomic units
-	self.E = -(_Z**2)*0.5
-
 	self.Emax = 0  # don't let it become zero
-	# the electrons close to the nucleus are pulled by the nucleus and repelled by the outer electrons
-	# they can have very negative energies
-	self.Emin = -_Z**2-10 # make minimum allowed energy 20 times as large as the Hydrogen atom with atomic number Z
+	self.Emin = -self.Z**2-10
+	self.E = -self.Z**2*0.5/(_n**2)
 
-	self.Z = _Z
 	self.r = _r
 	self.V = Vcoulomb(self.r, self.Z)
 	self.Vd = np.zeros(len(r), dtype = np.longdouble)
@@ -188,6 +197,15 @@ class Orbital:
 	self.Hex = np.zeros(len(r), dtype = np.longdouble)
 	self.spin = _spin
 	pass
+
+    # when counting the number of zeros in the solution
+    # after the solution gets to an exponential decay, it can
+    # have numerical fluctuations that cause extra "artificial zeroes"
+    # we should avoid counting those zeroes as the number of zeroes is
+    # used to distinguish between solutions to different principal numbers
+    def getMaxIdxForNodeCount(self):
+        # gets the last index for now
+	return len(self.r)-1
 
     # this function is zero for neighbour points that
     # are solution of the Numerov equation
@@ -197,8 +215,8 @@ class Orbital:
     # assume the r->0 behaviour of the Hydrogen atom
     # and solve the Schr. equation from that
     # also count the number of zeroes of the solution
-    def outwardSolution(self, r, m, indepTerm, dx, E, n, l, Z, f):
-        y = np.zeros(len(r), dtype = np.longdouble)
+    def outwardSolution(self, m, indepTerm, E, f):
+        y = np.zeros(len(self.r), dtype = np.longdouble)
         no = 0
 	mu = 1 # TODO
 	a = 1.0/mu
@@ -216,10 +234,9 @@ class Orbital:
 	# -> d^2y/dx^2 = (l+0.5)^2 y
 	# -> y = exp((l+0.5) x)   # notice that x -> -infinity means exp(x) converges not exp(-x)
 	# -> y = exp((l+0.5) ln(Zr)) = (Zr)^(l+0.5)
-	#N = ((2*Z/n)**3*fact(n-l-1)/(2*n*fact(n+l)**3))**0.5
-	N = 1.0
-        y[0] = ((Z*r[0])**(np.sqrt((l+0.5)**2)))/N
-        y[1] = ((Z*r[1])**(np.sqrt((l+0.5)**2)))/N
+	N = 1
+        y[0] = ((self.Z*self.r[0])**(np.sqrt((self.l+0.5)**2)))/N
+        y[1] = ((self.Z*self.r[1])**(np.sqrt((self.l+0.5)**2)))/N
         for i in range(1, len(r)-1):
 	    if f[i+1] != 0:
       	        y[i+1] = ((12 - f[i]*10)*y[i] - f[i-1]*y[i-1] + (indepTerm[i+1] + 10.0*indepTerm[i] + indepTerm[i-1]))/f[i+1]
@@ -227,28 +244,28 @@ class Orbital:
 	        # f[i+1] = 0 -> y[i+1]*f[i+1] = 0
 	        y[i+1] = y[i]
 
-        for i in range(1, len(r)-1):
-    	    if y[i]*y[i+1] < 0:
+        for i in range(2, self.getMaxIdxForNodeCount()):
+    	    if y[i]*y[i-1] < 0:
     	        no += 1
         return [y, no]
     
     # assume the r->infinity behaviour of the orbitals (ie: assume they tend to zero)
     # and solve the Schr. equation from that
     # also count number of zeroes of the solution
-    def inwardSolution(self, r, m, indepTerm, dx, E, n, l, Z, f, eps):
-        yp = np.zeros(len(r), dtype = np.longdouble)
+    def inwardSolution(self, m, indepTerm, E, f):
+        yp = np.zeros(len(self.r), dtype = np.longdouble)
         nop = 0
   	N = 10.0
-        yp[len(r)-1] = np.exp(-np.sqrt(-2*m*E)*r[len(r)-1])/N
-        yp[len(r)-2] = np.exp(-np.sqrt(-2*m*E)*r[len(r)-2])/N
-        for i in reversed(range(1, len(r)-1)):
+        yp[len(self.r)-1] = np.exp(-np.sqrt(-2*m*E)*self.r[len(self.r)-1])/N
+        yp[len(self.r)-2] = np.exp(-np.sqrt(-2*m*E)*self.r[len(self.r)-2])/N
+        for i in reversed(range(1, len(self.r)-1)):
 	    if f[i-1] != 0:
-                yp[i-1] = ((12 - f[i]*10)*yp[i] - f[i+1]*yp[i+1] + dx**2/12.0*(indepTerm[i+1] + 10.0*indepTerm[i] + indepTerm[i-1]))/f[i-1];
+                yp[i-1] = ((12 - f[i]*10)*yp[i] - f[i+1]*yp[i+1] + (indepTerm[i+1] + 10.0*indepTerm[i] + indepTerm[i-1]))/f[i-1];
             else:
                 yp[i-1] = yp[i]
     
-        for i in reversed(range(1, len(r)-1)):
-      	    if yp[i-1]*yp[i] < 0:
+        for i in reversed(range(0, self.getMaxIdxForNodeCount()-2)):
+      	    if yp[i]*yp[i+1] < 0:
     	        nop += 1
         return [yp, nop]
     
@@ -267,6 +284,64 @@ class Orbital:
     	    y_ren[i] = rat*yp[i]
         return y_ren
 
+    # calculate dF/dE, by varying E very slightly
+    # but we cannot change the number of zeroes of the function
+    # so if this variation causes that, reduce the size of the shift
+    # otherwise we would be comparing solutions with different number of zeroes
+    # which correspond to different principal numbers/energies
+    def solveDiff(self, r, pot, indepTerm, E, m):
+        [a, f, s, icl] = getAF(r, pot, indepTerm, E, self.l, m)
+        [y, no] = self.outwardSolution(m, s, E, f)
+        [yp, nop] = self.inwardSolution(m, s, E, f)
+        y_ren = self.matchInOut(y, yp, icl)
+
+	no_ep = -1
+	nop_ep = -1
+        dE = -0.2*E
+        if dE == 0:
+            dE = -0.01
+	while no_ep != no and nop_ep != nop:
+	    dE = dE*0.5 # half it if the previous iteration changed number of zeroes
+            # recalculate the solution with a slihtly varied E
+            [ap, fp, sp, iclp] = getAF(r, pot, indepTerm, E+dE, self.l, m)
+            [y_ep, no_ep] = self.outwardSolution(m, sp, E+dE, fp)
+            [yp_ep, nop_ep] = self.inwardSolution(m, sp, E+dE, fp)
+            y_ep_ren = self.matchInOut(y_ep, yp_ep, icl)
+        Ficl = self.F(icl, f, s, y_ren) # get F at icl
+        Fp = self.F(icl, fp, sp, y_ep_ren)
+	return (Fp - Ficl)/dE
+
+    def solveDiff2(self, r, pot, indepTerm, E, m):
+        [a, f, s, icl] = getAF(r, pot, indepTerm, E, self.l, m)
+        [y, no] = self.outwardSolution(m, s, E, f)
+        [yp, nop] = self.inwardSolution(m, s, E, f)
+        y_ren = self.matchInOut(y, yp, icl)
+
+	no_ep = -1
+	nop_ep = -1
+        dE = -0.2*E
+        if dE == 0:
+            dE = -0.01
+	while (no_ep != no or nop_ep != nop) or (no_ep2 != no or nop_ep2 != nop):
+	    dE = dE*0.5 # half it if the previous iteration changed number of zeroes
+            # recalculate the solution with a slihtly varied E
+            [ap, fp, sp, iclp] = getAF(r, pot, indepTerm, E+dE, self.l, m)
+            [y_ep, no_ep] = self.outwardSolution(m, sp, E+dE, fp)
+            [yp_ep, nop_ep] = self.inwardSolution(m, sp, E+dE, fp)
+            y_ep_ren = self.matchInOut(y_ep, yp_ep, icl)
+
+            [ap2, fp2, sp2, iclp2] = getAF(r, pot, indepTerm, E+2*dE, self.l, m)
+            [y_ep2, no_ep2] = self.outwardSolution(m, sp2, E+2*dE, fp2)
+            [yp_ep2, nop_ep2] = self.inwardSolution(m, sp2, E+2*dE, fp2)
+            y_ep_ren2 = self.matchInOut(y_ep2, yp_ep2, icl)
+        Ficl = self.F(icl, f, s, y_ren) # get F at icl
+        Fp = self.F(icl, fp, sp, y_ep_ren)
+        Fp2 = self.F(icl, fp2, sp2, y_ep_ren2)
+	Fdiff = (Fp - Ficl)/dE
+	F2diff = (Fp2 - Fp)/dE
+	Fdiff2 = (F2diff - Fdiff)/dE
+	return Fdiff2
+        
 
     # y is the rescaled wave function
     # y = 1/(sqrt(r)) * xi
@@ -288,13 +363,13 @@ class Orbital:
     # the eq. in terms of r, so it would be:
     # deriv(deriv(xi)) + 2 m / hbar^2 [ E - V - (hbar^2 l (l+1) ) / 2 m r^2 ] xi (r) = 0
     # in which case, a = 2 m / hbar^2 [ E - V - (hbar^2 l (l+1) ) / 2 m r^2 ] and dx is replaced by r(i) - r(i-1)
-    def solve(self, r, pot, indepTerm, n, l, E, Z):
+    def solve(self, r, pot, indepTerm, E):
         m = 1.0
         icl = -1
-        [a, f, s, icl] = getAF(r, pot, indepTerm, E, l, m)
+        [a, f, s, icl] = getAF(r, pot, indepTerm, E, self.l, m)
         
-        [y, no] = self.outwardSolution(r, m, s, dx, E, n, l, Z, f)
-        [yp, nop] = self.inwardSolution(r, m, s, dx, E, n, l, Z, f, y[len(r)-1])
+        [y, no] = self.outwardSolution(m, s, E, f)
+        [yp, nop] = self.inwardSolution(m, s, E, f)
         y_ren = self.matchInOut(y, yp, icl)
         # y_ren is continuous
         # y_ren was estimated outward until icl
@@ -309,38 +384,28 @@ class Orbital:
         # (12 - 10 f_n) y_n - f_{n-1} y_{n-1} - f_{n+1} y_{n+1} = 0
         # but this is not zero! This is some F(E).
         # We want to find the zero of a function F(E)
-        # F(E) = F(E_current) + F'(E_current) (E-E_current)
+        # F(E) = F(E_current) + F'(E_current) (E-E_current) + F''(E_current) (E-E_current)^2/2.0
         # for E_new, F(E_new) = 0
         # dE = E_new - E_current = - F(E_current)/(F'(E_current))
         # F(E_current) = (12 - 10 f_icl) y_icl - f_{icl-1} y_{icl-1} - f_{icl+1} y_{icl+1}
         Ficl = self.F(icl, f, s, y_ren) # get F at icl
-        # calculate dF/dE, by varying E very slightly
-        dE = -0.1e-1
-        if dE == 0:
-          dE = -0.1e-1
-        # recalculate the solution with a slihtly varied E
-        [ap, fp, sp, iclp] = getAF(r, pot, indepTerm, E+dE, l, m)
-        [y_ep, no_ep] = self.outwardSolution(r, m, sp, dx, E+dE, n, l, Z, fp)
-        [yp_ep, nop_ep] = self.inwardSolution(r, m, sp, dx, E+dE, n, l, Z, fp, y_ren[len(r)-1])
-        y_ep_ren = self.matchInOut(y_ep, yp_ep, icl)
 
-        # get delta E using condition that y[infinity] from outward integration is zero
-	# this is the backup method in case comparing the functions at icl fails
-	# F(E) = y[infinity] - 0
-        dE_inf = 0.1*E
-        # recalculate the solution with a slihtly varied E
-        [ap_inf, fp_inf, sp_inf, iclp_inf] = getAF(r, pot, indepTerm, E+dE_inf, l, m)
-        [y_ep_inf, no_ep_inf] = self.outwardSolution(r, m, sp, dx, E+dE_inf, n, l, Z, fp)
-        [yp_ep_inf, nop_ep_inf] = self.inwardSolution(r, m, sp, dx, E+dE_inf, n, l, Z, fp, y_ren[len(r)-1])
-        y_ep_ren_inf = self.matchInOut(y_ep_inf, yp_ep_inf, icl)
-        F_curr = y[len(r)-1]
-	F_diff = y_ep_inf[len(r)-1] - y[len(r)-1]
-	bestdE_inf = -F_curr*dE/F_diff
-
-	if np.isnan(yp_ep[0]) or np.isnan(yp[0]) or np.isinf(yp_ep[0]) or np.isinf(yp[0]):
+	if np.isnan(yp[0]) or np.isinf(yp[0]):
 	    # the inward solution is too unstable
 	    # use the requirement that the outwad solution must match zero at infinity instead
 	    # F(E) = y[infinity] - 0
+            # get delta E using condition that y[infinity] from outward integration is zero
+	    # this is the backup method in case comparing the functions at icl fails
+	    # F(E) = y[infinity] - 0
+            dE_inf = 0.1*E
+            # recalculate the solution with a slihtly varied E
+            [ap_inf, fp_inf, sp_inf, iclp_inf] = getAF(r, pot, indepTerm, E+dE_inf, self.l, m)
+            [y_ep_inf, no_ep_inf] = self.outwardSolution(m, sp_inf, E+dE_inf, fp)
+            [yp_ep_inf, nop_ep_inf] = self.inwardSolution(m, sp_inf, E+dE_inf, fp)
+            y_ep_ren_inf = self.matchInOut(y_ep_inf, yp_ep_inf, icl)
+            F_curr = y[len(r)-1]
+	    F_diff = y_ep_inf[len(r)-1] - y[len(r)-1]
+	    bestdE_inf = -F_curr*dE_inf/F_diff
 	    bestdE = bestdE_inf
             y_ren = y
 	    yp = y
@@ -348,34 +413,42 @@ class Orbital:
 	else:
             # new solution has a discontinuity at icl again
             # dF/dE is defined as the difference over dE of the change in F
-            Fp = self.F(icl, fp, sp, y_ep_ren)
-            if Fp != Ficl:
-                bestdE = -Ficl*dE/(Fp - Ficl)
+            Fdiff = self.solveDiff(r, pot, indepTerm, E, m)
+            #Fdiff2 = self.solveDiff2(r, pot, indepTerm, E, m)
+            if not np.isnan(Fdiff):
+                bestdE = -Ficl/Fdiff
+		# we could also go until the quadratic term
+		# but it has been checked it makes a very small difference and the loss in performance is enormous ...
+                # F(E_current) + F'(E_current) (E-E_current) + F''(E_current) (E-E_current)^2/2.0 = 0
+		#ca = Fdiff2/2.0
+		#cb = Fdiff
+		#cc = Ficl
+		#if cb**2 < 4*ca*cc:
+		#  bestdE = -Ficl/Fdiff
+		#else:
+                #   bestdE1 = -cb/(2.0*ca) - np.sqrt(cb**2 - 4*ca*cc)/(2.0*ca)
+                #   bestdE2 = -cb/(2.0*ca) + np.sqrt(cb**2 - 4*ca*cc)/(2.0*ca)
+		#   bestdE = bestdE1
+		#   if np.fabs(bestdE2) < np.fabs(bestdE1):
+		#       bestdE = bestdE2
             else:
                 bestdE = dE
-	    #if np.fabs(bestdE) > 10: # also unstable
-	    #    # the inward solution is too unstable
-	    #    # use the requirement that the outwad solution must match zero at infinity instead
-	    #    # F(E) = y[infinity] - 0
-	    #    bestdE = bestdE_inf
-	    #    y_ren = y
-	    #    yp = y
-	    #    nop = no
         if icl < 0:
-            bestdE = 1 # arbitrary, but must be positive to make energy less negative
-        #return [y_ren, yp, icl, no, nop, bestdE]
-        return [y, yp, y_ren, icl, no, nop, bestdE, bestdE_inf]
+            bestdE = 0.5 # arbitrary, but must be positive to make energy less negative
+        return [y, yp, y_ren, icl, no, nop, bestdE]
     
     
     # return the number of zeroes expected in the solution that has n and l
     # as quantum numbers
-    def nodes(self, n, l):
-        return n - l - 1
+    def nodes(self):
+        return self.n - self.l - 1
     
     # loop over energies to solve the Schr. equation and adapt the energy until a consistent
     # solution is found and a valid energy is available
     def solveWithCurrentPotential(self, label = 1):
-        Nscale = 10.0
+        self.Emax = 0
+	self.Emin = -self.Z**2-10
+        Nscale = 1.0
 	mismatchNodes = False
         for i in range(0, self.Niter):
 	    # solve Schroedinger equation using self.E as energy guess
@@ -388,67 +461,77 @@ class Orbital:
 	    # are consistent.
             # as they are not, the discrepancy is used to return the "bestdE", which has the variation one
 	    # should apply in the energy to get a better solution, to first order
-            [self.y, self.yp, self.yfinal, self.icl, self.no, self.nop, bestdE, bestdE_inf] = self.solve(self.r, self.V + self.Vd, self.Vex, self.n, self.l, self.E, self.Z)
+            [self.y, self.yp, self.yfinal, self.icl, self.no, self.nop, bestdE] = self.solve(self.r, self.V + self.Vd + self.Vex, np.zeros(len(self.r)), self.E)
 
             dE = 0 # delta E to be used to shift energy
 
 	    # first check the number of nodes
+
+            # get list of crossings
+	    nodesList = []
+	    for idx in range(2, self.getMaxIdxForNodeCount()-2):
+	      if self.yfinal[idx]*self.yfinal[idx-1] < 0:
+	        nodesList.append(idx)
+	    lnodes = len(nodesList)
+
 	    # the number of zeros in y must be nodes(n, l) (==n - l - 1) for us to have the
 	    # solution corresponding to the correct energy level given by n and l
 	    # the number of zeroes is linear in n, so if it is too high, it means our current
 	    # guess for the energy is too high
 	    # if the number of zeroes is too low, it means our current guess for the energy
 	    # is too low
-            if self.no == self.nop and self.no > self.nodes(self.n, self.l):
+	    if self.icl < 0:
+	        dE = bestdE
+	    elif lnodes > self.nodes():
 	        # don't let us go above the current energy again, as it gives the wrong solution
 		# and shift the energy to some value far far away
 	        self.Emax = self.E
 	        dE = (self.Emax + self.Emin)*0.5 - self.E
-		mismatchNodes = False
-            elif self.no == self.nop and self.no < self.nodes(self.n, self.l):
+		#Nscale *= 2.0
+            elif lnodes < self.nodes():
 	        # don't let us go below the current energy again, as it gives the wrong solution
 		# and shift the energy to some value far far away
 	        self.Emin = self.E
 	        dE = (self.Emax + self.Emin)*0.5 - self.E
-		mismatchNodes = False
-	    elif self.no != self.nop:
-	        print "DANGER! DANGER! DANGER!"
-		print "Outward integration with ", self.no, " nodes, while inward integration with ", self.nop, "nodes."
-		print "Going to proceed now by going back to previous energy and bisecting all future energy steps, so the scan in energy can be finer."
-		# go back to where we were before, stepping back
-		dE = -self.prev_dE
-		# and also divide by 2 all next steps after we get out of this funny place
-		# so we scan energy in a finer bin
-		# but mark this event, so we don't bisect it twice in sequence or we will artificially converge
-		if not mismatchNodes:
-		    Nscale *= 2.0
-	        mismatchNodes = True
-	        #sys.exit(-1)
+		#Nscale *= 2.0
             else: # number of nodes is ok, but the energy needs to be adjusted
 	        # in principle we could use the bestdE above as a shift
 		# but it is too much sometimes, so let's soften it so we don't go too far away
                 dE = 1.0/Nscale*bestdE
 		# don't let it anyway give us a too big shift, otherwise this never converges
-	        if np.fabs(dE) > 1.0:
-	            dE = 1.0*dE/np.fabs(dE)
-		mismatchNodes = False
+	        if np.fabs(dE) > 1.0/Nscale:
+	            dE = 1.0/Nscale*dE/np.fabs(dE)
+		if self.prev_dE*dE < 0: # we changed directions, so the step is to big and it is going from Emax to Emin
+		    dE *= 0.5
+		    Nscale *= 2
 
             if debug or i % 50 == 0:
-                print "->  Iteration ", i, ", E = ", self.E, ", dE = ", dE, ", nodes = ", self.no, self.nop, ", expected nodes = ", self.nodes(self.n, self.l), ", crossing zero at = ", self.icl
+                print "->  Iteration ", i, ", E = ", self.E*eV, " eV, dE = ", dE*eV, " eV, nodes = ", self.no, self.nop, lnodes, ", expected nodes = ", self.nodes(), ", crossing zero at = ", self.icl, ", with zero crossings at i = ", nodesList, ", r[zeros] = ", self.r[nodesList]
 
 	    # now we have y for this energy
 	    # if we want to plot it, we would need to
 	    # undo the transformation done previously (y = sqrt(r)*psi) and normalise it so that
 	    # int psi^2 r^2 dr = 1
-            psi = toPsi(self.r, self.y)
-            psip = toPsi(self.r, self.yp)
+            #psi = toPsi(self.r, self.y)
+            #psip = toPsi(self.r, self.yp)
             self.psifinal = toPsi(self.r, self.yfinal)
 	    # only plot it sometimes, as I don't have patience otherwise
 	    if i % 10 == 0:
-  	        plotWaveFunction(r, psi, psip, self.psifinal, self.n, self.l, 'lastwf.eps')
+  	        plotWaveFunction(r, self.psifinal, self.V, self.Vd, self.Vex, self.E, self.n, self.l, 'lastwf.eps')
 
-            # increment the energy now
+            # save previous dE
+	    # can be useful to debug
 	    self.prev_dE = dE
+	    self.prev_no = lnodes
+	    # limit the future scan range, depending on which direction we are going
+	    # this only works if the dE calculation always points in the correct direction
+	    # if next step is positive in energy, assume this is the minimum energy to scan
+            if dE > 0:
+	        self.Emin = self.E
+            # if the next step is negative in energy, assume this is the maximum energy to scan
+	    if dE < 0:
+	        self.Emax = self.E
+            # increment the energy now
             self.E += dE
 	    # and cap it so it doesn't go crazy
             if dE > 0 and self.E > self.Emax:
@@ -457,13 +540,13 @@ class Orbital:
                 self.E = self.Emin
             #print "E, Emax, Emin = " , E, Emax, Emin
 	    # if the delta E is too small, stop
-            #if np.fabs(dE) < 1e-12 or np.fabs(self.Emax - self.Emin) < 1e-5:
-            if not mismatchNodes and (np.fabs(dE) < eps or np.fabs(self.Emax - self.Emin) < 1e-5):
+            if (np.fabs(dE) < eps or np.fabs(self.Emax - self.Emin) < 1e-5):
                 print "Converged to energy ", self.E*eV, " eV"
                 break
+        print "->  Final result for orbital, E = ", self.E*eV, " eV, dE = ", dE*eV, " eV, nodes = ", self.no, self.nop, len(nodesList), ", expected nodes = ", self.nodes(), ", crossing zero at = ", self.icl, ", with zero crossings at i = ", nodesList, ", r[zeros] = ", self.r[nodesList]
 
-  	plotWaveFunction(r, psi, psip, self.psifinal, self.n, self.l, 'wf_'+str(label)+'.eps')
-  	plotWaveFunction(r, psi, psip, self.psifinal, self.n, self.l, 'wf_'+str(label)+'_nolimit.eps', limit = False)
+  	plotWaveFunction(r, self.psifinal, self.V, self.Vd, self.Vex, self.E, self.n, self.l, 'wf_'+str(label)+'.eps')
+  	plotWaveFunction(r, self.psifinal, self.V, self.Vd, self.Vex, self.E, self.n, self.l, 'wf_'+str(label)+'_nolimit.eps', limit = False)
 
     # calculates the Vd = sum_orbitals integral psi_orb^2/r dr
     # calculates also Vex = sum orbitals integral psi_orb psi_this_orbital/r dr
@@ -472,10 +555,6 @@ class Orbital:
     # to return Vd/2
     def loadHartreeFockPotential(self, orbitalList, orbKey):
         #thisVhf = np.zeros(len(self.r), dtype = np.longdouble)
-
-        # reset boundariesL with new potentials, it should float more
-	self.Emax = 0
-	self.Emin = -(self.Z**2)*0.5
 
         # must calculate
 	# Vd = sum_{orb} int R(r')^2/(r-r') Y(theta', phi')^2 r'^2 sin theta' dr dtheta dphi
@@ -604,57 +683,63 @@ class Orbital:
                     Vex[z] = Vex[z+1] + E[z]*(self.r[z+1] - self.r[z])
                     Hex[z] = Hex[z+1] + E[z]*(self.r[z+1] - self.r[z])
 		for z in range(0, len(self.r)):
-  		    Vex[z] *= orbPsi.psifinal[z]
+    		    Vex[z] *= orbPsi.psifinal[z]
+		    #if np.fabs(orbPsi.psifinal[z]/self.psifinal[z]) > 5 and self.r[z] > 0.03/nm:
+		    #    Vex[z] = 0
+		    #else:
+    		    #    Vex[z] *= orbPsi.psifinal[z]/self.psifinal[z]
   		    Hex[z] *= orbPsi.psifinal[z]*self.psifinal[z]
 	        # and add it in
 		thisVex -= Vex
                 #thisVhf -= Vex
 		thisHex -= Hex
-	print "Sum Vex = ", np.sum(thisVex)
-	print "Sum Vd  = ", np.sum(thisVd)
-	#print "Sum Vhf = ", np.sum(thisVhf)
 	# this (alledgedly) helps in the convergence
 	# should be just this otherwise:
 	#self.Vhf = thisVhf
+	print "Sum Vex", np.sum(thisVex)
+	print "Sum Vd", np.sum(thisVd)
 	self.Vd = 0.7*self.Vd + 0.3*thisVd
   	self.Vex = 0.7*self.Vex + 0.3*thisVex
   	self.Hex = 0.7*self.Hex + 0.3*thisHex
                 
 
-def plotPotential(r, V, Vhf, name):
+def plotPotential(r, V, Vhf, Vex, name):
     idx = np.where(r > 1.5)
     idx = idx[0][0]
     idxn = np.where(r > 0.05)
     idxn = idxn[0][0]
     plt.clf()
     Vtot = np.zeros(len(r), dtype = np.longdouble)
-    plt.plot(r[idxn:idx], V[idxn:idx], 'r--', linewidth=2, label='Coulomb potential')
-    plt.plot(r[idxn:idx], Vhf[idxn:idx], 'g--', linewidth=2, label='HF potential')
-    Vtot = V + Vhf
-    plt.plot(r[idxn:idx], Vtot[idxn:idx], 'b-', linewidth=2, label='Total')
-    plt.legend(('Coulomb potential', 'HF potential', 'Total'), frameon=False)
-    plt.xlabel('$r$')
-    plt.ylabel('$V(r)$')
+    plt.plot(r[idxn:idx]*nm, V[idxn:idx]*eV, 'r--', linewidth=2, label='Nucleus potential')
+    plt.plot(r[idxn:idx]*nm, Vhf[idxn:idx]*eV, 'g--', linewidth=2, label='HF direct potential')
+    plt.plot(r[idxn:idx]*nm, Vex[idxn:idx]*eV, 'g-.', linewidth=2, label='HF exchange potential')
+    Vtot = V + Vhf + Vex
+    plt.plot(r[idxn:idx]*nm, Vtot[idxn:idx]*eV, 'b-', linewidth=2, label='Total')
+    plt.legend(('Nucleus potential', 'HF direct potential', 'HF exchange potential', 'Total'), frameon=False, loc = 'center right')
+    plt.xlabel('$r$ [nm]')
+    plt.ylabel('$V(r)$ [eV]')
     plt.title('')
     plt.draw()
     #plt.show()
     plt.savefig(name, transparent = True)
+    plt.close()
 
 from scipy.optimize import curve_fit
 def zFitFunction(r, Z, C1, C2, C3):
     return -Z/r + (C1 + C2/r)*np.exp(-C3*r)
 
-def fitPotential(r, V, Vhf, name):
+def fitPotential(r, V, Vhf, Vex, name):
     idx = np.where(r > 1)
     idx = idx[0][0]
     idxn = np.where(r > 0.1)
     idxn = idxn[0][0]
     plt.clf()
     Vtot = np.zeros(len(r), dtype = np.longdouble)
-    plt.plot(r[idxn:idx], V[idxn:idx], 'r--', linewidth=2, label='Coulomb potential')
-    plt.plot(r[idxn:idx], Vhf[idxn:idx], 'g--', linewidth=2, label='HF potential')
-    Vtot = V + Vhf
-    plt.plot(r[idxn:idx], Vtot[idxn:idx], 'b-', linewidth=2, label='Total')
+    plt.plot(r[idxn:idx]*nm, V[idxn:idx]*eV, 'r--', linewidth=2, label='Nucleus potential')
+    plt.plot(r[idxn:idx]*nm, Vhf[idxn:idx]*eV, 'g--', linewidth=2, label='HF direct potential')
+    plt.plot(r[idxn:idx]*nm, Vhf[idxn:idx]*eV, 'g-.', linewidth=2, label='HF exchange potential')
+    Vtot = V + Vhf + Vex
+    plt.plot(r[idxn:idx]*nm, Vtot[idxn:idx]*eV, 'b-', linewidth=2, label='Total')
     Vfit = None
     fitSuccessful = False
     try:
@@ -669,18 +754,19 @@ def fitPotential(r, V, Vhf, name):
             Vfit[z] = zFitFunction(r[z], Zeff, C1, C2, C3)
 	fitSuccessful = True
     except:
-        print "Exception when doing effective potential fit."
+        print "DANGER! DANGER! DANGER! Exception when doing effective potential fit: perhaps non-nuclei potential is zero (ie: single electron atom)? -- This is not essential, so skipping this ... just don't trust the resulting potential fir plots in ", name
     if fitSuccessful:
-        plt.plot(r[idxn:idx], Vfit[idxn:idx], 'b-.', linewidth=3, label='Fit')
-        plt.legend(('Coulomb potential', 'HF potential', 'Total', 'Fit with $Z_{eff},C_{1},C_{2},C_{3}=%.3f,%.3f,%.3f,%.3f$' % (Zeff, C1, C2, C3)), frameon=False)
+        plt.plot(r[idxn:idx]*nm, Vfit[idxn:idx]*eV, 'b-.', linewidth=3, label='Fit')
+        plt.legend(('Nucleus potential', 'HF direct potential', 'HF exchange potential', 'Total', 'Fit'), frameon=False)
     else:
-        plt.legend(('Coulomb potential', 'HF potential', 'Total'), frameon=False)
-    plt.xlabel('$r$')
-    plt.ylabel('$V(r)$')
+        plt.legend(('Coulomb potential', 'HF direct potential', 'HF exchange potential', 'Total'), frameon=False)
+    plt.xlabel('$r$ [nm]')
+    plt.ylabel('$V(r)$ [eV]')
     plt.title('')
     plt.draw()
     #plt.show()
     plt.savefig(name, transparent = True)
+    plt.close()
 
 # plot R(r)
 # R_0 is the wave function with boundary conditions in r = 0
@@ -696,49 +782,72 @@ def fitPotential(r, V, Vhf, name):
 # integral Y(theta, phi)^2 dOmega = 1
 # integral |r R(r)|^2 dr = 1
 # (so R(r) or |R(r)|^2 are not normalised to 1: |r R(r)|^2 is ...)
-def plotWaveFunction(r, psi_0, psi_inf, psi_final, n, l, name, limit = True):
+def plotWaveFunction(r, psi_final, V, Vd, Vex, E, n, l, name, limit = True):
 
     # for reference: this is the Hydrogen atom orbital
     # this is R(r)! that is the full solution is r R(r) Y(theta, phi)
+    Htit = ''
     if n == 1:
         exact = 2*np.exp(-r)
+	Htit = '1s'
     elif n == 2 and l == 0:
         exact = 1.0/(2*np.sqrt(2))*(2-r)*np.exp(-r/2.0)
+	Htit = '2s'
     elif n == 2 and l == 1:
         exact = 1.0/(2*np.sqrt(6))*r*np.exp(-r/2.0)
+	Htit = '1p'
     elif n == 3 and l == 0:
         exact = 2.0/(81*np.sqrt(3))*(27-18*r+2*r**2)*np.exp(-r/3.0)
+	Htit = '3s'
     elif n == 3 and l == 1:
         exact = 4.0/(81*np.sqrt(6))*(6-r)*r*np.exp(-r/3.0)
+	Htit = '3p'
     elif n == 3 and l == 2:
         exact = 4.0/(81*np.sqrt(30))*r**2*np.exp(-r/3.0)
+	Htit = '3d'
 
     if limit:
-        idx = np.where(r > 2)
+        idx = np.where(r > 3)
         idx = idx[0][0]
+        idxl = np.where(r > 0.2)
+        idxl = idxl[0][0]
     else:
         idx = len(r)-1
         for i in range(1, len(r)):
             if psi_final[i-1]*psi_final[i] < 0:
 	        idx = i+100
 	        break
+        idxl = 0
     if idx > len(r) - 1:
         idx = len(r)-1
-    plt.clf()
-    plt.plot(r[0:idx], psi_0[0:idx], 'r--', linewidth=2, label='$R_{0}(r)$')
-    plt.plot(r[0:idx], psi_inf[0:idx], 'g--', linewidth=2, label='$R_{\\infty}(r)$')
-    plt.plot(r[0:idx], psi_final[0:idx], 'b--', linewidth=2, label='$R(r)$')
+    #plt.clf()
+    fig, ax1 = plt.subplots()
+    ax1.plot(r[idxl:idx]*nm, psi_final[idxl:idx], 'r-', linewidth=2, label='$R(r)$')
     if n < 4:
-        plt.plot(r[0:idx], exact[0:idx], 'b-', linewidth=1, label='Hydrogen exact n='+str(n)+',l='+str(l))
-        plt.legend(('$R_0(r)$', '$R_{\\infty}(r)$', '$R(r)$', 'Hydrogen exact n='+str(n)+',l='+str(l)), frameon=False)
+        ax1.plot(r[idxl:idx]*nm, exact[idxl:idx], 'r:', linewidth=1, label='H '+Htit)
+        ax1.legend(('$R(r)$', 'H '+Htit), frameon=False, loc = 'lower right')
     else:
-        plt.legend(('$R_0(r)$', '$R_{\\infty}(r)$', '$R(r)$'), frameon=False)
-    plt.xlabel('$r$')
-    plt.ylabel('$R(r)$')
+        ax1.legend(('$R(r)$'), frameon=False, loc = 'lower right')
+    ax1.set_xlabel('$r$ [nm]')
+    ax1.set_ylabel('$R(r)$')
+    for tl in ax1.get_yticklabels():
+        tl.set_color('r')
+    ax2 = ax1.twinx()
+    ax2.plot(r[idxl:idx]*nm, V[idxl:idx]*eV, 'b--', linewidth=2, label='Nucleus pot.')
+    ax2.plot(r[idxl:idx]*nm, Vd[idxl:idx]*eV, 'b-.', linewidth=2, label='HF direct pot.')
+    ax2.plot(r[idxl:idx]*nm, Vex[idxl:idx]/psi_final[idxl:idx]*eV, 'b:', linewidth=2, label='HF exchange pot.')
+    ax2.plot(r[idxl:idx]*nm, (V+Vd+Vex/psi_final)[idxl:idx]*eV, 'b-', linewidth=2, label='Total pot.')
+    ax2.plot(r[idxl:idx]*nm, E*np.ones(idx-idxl)*eV, 'g--', linewidth=2, label='Energy')
+    ax2.set_xlabel('$r$ [nm]')
+    ax2.set_ylabel('Energy [eV]')
+    for tl in ax2.get_yticklabels():
+        tl.set_color('b')
+    ax2.legend(('Nucleus pot.', 'HF direct pot.', 'HF exchange pot.', 'Total pot.', 'Energy'), frameon = False, loc = 'center right')
     plt.title('')
     plt.draw()
     #plt.show()
     plt.savefig(name, transparent = True)
+    plt.close()
 
 def calculateTotalEnergy(orbitalList):
     E0 = 0
@@ -750,10 +859,7 @@ def calculateTotalEnergy(orbitalList):
 	        dr = 0
 		if z < len(orbPsi.r)-1:
 		    dr = orbPsi.r[z+1] - orbPsi.r[z]
-  	        #JmK += (orbPsi.Vd[z]*orbPsi.psifinal[z]**2)*(orbPsi.r[z]**2)*dr - orbPsi.Vex[z]/(2.0)
-  	        #JmK += (orbPsi.Vd[z]*orbPsi.psifinal[z]**2)*(orbPsi.r[z]**2)*dr - orbPsi.Vex[z]*orbPsi.psifinal[z]**2*(orbPsi.r[z]**2)*dr
 		# should have 4*pi*Y^2, but for s orbitals Y^2 = 1/4pi
-  	        #JmK += (orbPsi.Vd[z]*orbPsi.psifinal[z]**2)*(orbPsi.r[z]**2)*dr - orbPsi.Vex[z]*orbPsi.psifinal[z]**2*(orbPsi.r[z]**2)*dr
   	        JmK += (orbPsi.Vd[z]*orbPsi.psifinal[z]**2)*(orbPsi.r[z]**2)*dr - orbPsi.Hex[z]*(orbPsi.r[z]**2)*dr
     print "J-K", JmK
     E0 += -0.5*JmK
@@ -788,9 +894,9 @@ orb['1s'].append(Orbital(_n = 1, _l = 0, _Z = Z, _r = r, _spin = 1))   # stop he
 orb['1s'].append(Orbital(_n = 1, _l = 0, _Z = Z, _r = r, _spin = -1))  # stop here for He
 orb['2s'] = []
 orb['2s'].append(Orbital(_n = 2, _l = 0, _Z = Z, _r = r, _spin = 1))   # stop here for Li
-orb['2s'].append(Orbital(_n = 2, _l = 0, _Z = Z, _r = r, _spin = -1))  # stop here for Be
-orb['2p'] = []
-orb['2p'].append(Orbital(_n = 2, _l = 1, _Z = Z, _r = r, _spin = 1))   # stop here for B
+#orb['2s'].append(Orbital(_n = 2, _l = 0, _Z = Z, _r = r, _spin = -1))  # stop here for Be
+#orb['2p'] = []
+#orb['2p'].append(Orbital(_n = 2, _l = 1, _Z = Z, _r = r, _spin = 1))   # stop here for B
 
 E_gs_old = 0
 hfIter = 0
@@ -808,7 +914,7 @@ while hfIter < 30:
 	k = 0
         for orbPsi in orb[orbitalName]:
             print '-->  (HF iteration '+str(hfIter)+') Solving equation for orbital ', orbitalName, ' electron ', k
-            print '->   (HF iteration '+str(hfIter)+') ', orbitalName, ', electron ', k, ': Hartree-Fock eigenvalue = ', orbPsi.E*eV
+            print '->   (HF iteration '+str(hfIter)+') ', orbitalName, ', electron ', k, ': Hartree-Fock eigenvalue = ', orbPsi.E*eV, " eV"
 	    k += 1
 
     print '---> (HF iteration '+str(hfIter)+') Solved the Schr. equation with effective potentials, now we use wave functions found to recalculate effective potentials of other electrons in electron x, for each x.'
@@ -830,8 +936,8 @@ while hfIter < 30:
 	        highestE = orb[k][item].E
 		externOrb = k
 		externIdx = item
-    plotPotential(r, orb[externOrb][externIdx].V, orb[externOrb][externIdx].Vd, 'potential_hfIter'+str(hfIter)+'.eps')
-    fitPotential(r, orb[externOrb][externIdx].V, orb[externOrb][externIdx].Vd, 'potentialFit_hfIter'+str(hfIter)+'.eps')
+    plotPotential(r, orb[externOrb][externIdx].V, orb[externOrb][externIdx].Vd, orb[externOrb][externIdx].Vex/orb[externOrb][externIdx].psifinal, 'potential_hfIter'+str(hfIter)+'.eps')
+    fitPotential(r, orb[externOrb][externIdx].V, orb[externOrb][externIdx].Vd, orb[externOrb][externIdx].Vex/orb[externOrb][externIdx].psifinal, 'potentialFit_hfIter'+str(hfIter)+'.eps')
 
     # calculate ground state energy
     E_gs = calculateTotalEnergy(orb)
