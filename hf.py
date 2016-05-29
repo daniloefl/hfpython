@@ -720,8 +720,10 @@ def plotPotential(r, V, Vhf, Vex, psi_final, name):
     plt.plot(r[idxn:idx]*nm, Vhf[idxn:idx]*eV, 'g--', linewidth=2, label='HF direct potential')
     exPot = Vex
     for i in range(idxn, idx):
-        if np.fabs(psi_final[i]) > 1e-2:
+        if np.fabs(psi_final[i]) > 1e-1:
 	    exPot[i] = exPot[i]/psi_final[i]
+	else:
+	    exPot[i] = 0
     plt.plot(r[idxn:idx]*nm, exPot[idxn:idx]*eV, 'g-.', linewidth=2, label='HF exchange potential')
     Vtot = V + Vhf + exPot
     plt.plot(r[idxn:idx]*nm, Vtot[idxn:idx]*eV, 'b-', linewidth=2, label='Total')
@@ -749,8 +751,10 @@ def fitPotential(r, V, Vhf, Vex, psi_final, name):
     plt.plot(r[idxn:idx]*nm, Vhf[idxn:idx]*eV, 'g--', linewidth=2, label='HF direct potential')
     exPot = Vex
     for i in range(idxn, idx):
-        if np.fabs(psi_final[i]) > 1e-2:
+        if np.fabs(psi_final[i]) > 1e-1:
 	    exPot[i] = exPot[i]/psi_final[i]
+	else:
+	    exPot[i] = 0
     plt.plot(r[idxn:idx]*nm, exPot[idxn:idx]*eV, 'g-.', linewidth=2, label='HF exchange potential')
     Vtot = V + Vhf + exPot
     plt.plot(r[idxn:idx]*nm, Vtot[idxn:idx]*eV, 'b-', linewidth=2, label='Total')
@@ -823,8 +827,10 @@ def plotWaveFunction(r, psi_final, V, Vd, Vex, E, n, l, name, limit = True):
     if limit:
         idx = np.where(r > 3)
         idx = idx[0][0]
-        idxl = np.where(r > 0.2)
-        idxl = idxl[0][0]
+        idxl = 0 #np.where(r > 0)
+        #idxl = idxl[0][0]
+        idxlp = np.where(r > 0.2)
+        idxlp = idxlp[0][0]
     else:
         idx = len(r)-1
         for i in range(1, len(r)):
@@ -832,6 +838,7 @@ def plotWaveFunction(r, psi_final, V, Vd, Vex, E, n, l, name, limit = True):
 	        idx = i+100
 	        break
         idxl = 0
+        idxlp = 0
     if idx > len(r) - 1:
         idx = len(r)-1
     #plt.clf()
@@ -847,15 +854,17 @@ def plotWaveFunction(r, psi_final, V, Vd, Vex, E, n, l, name, limit = True):
     for tl in ax1.get_yticklabels():
         tl.set_color('r')
     ax2 = ax1.twinx()
-    ax2.plot(r[idxl:idx]*nm, V[idxl:idx]*eV, 'b--', linewidth=2, label='Nucleus pot.')
-    ax2.plot(r[idxl:idx]*nm, Vd[idxl:idx]*eV, 'b-.', linewidth=2, label='HF direct pot.')
+    ax2.plot(r[idxlp:idx]*nm, V[idxlp:idx]*eV, 'b--', linewidth=2, label='Nucleus pot.')
+    ax2.plot(r[idxlp:idx]*nm, Vd[idxlp:idx]*eV, 'b-.', linewidth=2, label='HF direct pot.')
     exPot = Vex
     for i in range(idxl, idx):
-        if np.fabs(psi_final[i]) > 1e-2:
+        if np.fabs(psi_final[i]) > 1e-1:
 	    exPot[i] = exPot[i]/psi_final[i]
-    ax2.plot(r[idxl:idx]*nm, exPot[idxl:idx]*eV, 'b:', linewidth=2, label='HF exchange pot.')
-    ax2.plot(r[idxl:idx]*nm, (V+Vd+exPot)[idxl:idx]*eV, 'b-', linewidth=2, label='Total pot.')
-    ax2.plot(r[idxl:idx]*nm, E*np.ones(idx-idxl)*eV, 'g--', linewidth=2, label='Energy')
+	else:
+	    exPot[i] = 0
+    ax2.plot(r[idxlp:idx]*nm, exPot[idxlp:idx]*eV, 'b:', linewidth=2, label='HF exchange pot.')
+    ax2.plot(r[idxlp:idx]*nm, (V+Vd+exPot)[idxlp:idx]*eV, 'b-', linewidth=2, label='Total pot.')
+    ax2.plot(r[idxlp:idx]*nm, E*np.ones(idx-idxlp)*eV, 'g--', linewidth=2, label='Energy')
     ax2.set_xlabel('$r$ [nm]')
     ax2.set_ylabel('Energy [eV]')
     for tl in ax2.get_yticklabels():
