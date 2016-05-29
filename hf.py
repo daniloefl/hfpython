@@ -467,7 +467,7 @@ class Orbital:
 	    # are consistent.
             # as they are not, the discrepancy is used to return the "bestdE", which has the variation one
 	    # should apply in the energy to get a better solution, to first order
-            [self.y, self.yp, self.yfinal, self.icl, self.no, self.nop, bestdE] = self.solve(self.r, self.V + self.Vd + self.Vex, np.zeros(len(self.r)), self.E)
+            [self.y, self.yp, self.yfinal, self.icl, self.no, self.nop, bestdE] = self.solve(self.r, self.V + self.Vd, self.Vex, self.E)
 
             dE = 0 # delta E to be used to shift energy
 
@@ -690,10 +690,6 @@ class Orbital:
                     Hex[z] = Hex[z+1] + E[z]*(self.r[z+1] - self.r[z])
 		for z in range(0, len(self.r)):
     		    Vex[z] *= orbPsi.psifinal[z]
-		    #if np.fabs(orbPsi.psifinal[z]/self.psifinal[z]) > 5 and self.r[z] > 0.03/nm:
-		    #    Vex[z] = 0
-		    #else:
-    		    #    Vex[z] *= orbPsi.psifinal[z]/self.psifinal[z]
   		    Hex[z] *= orbPsi.psifinal[z]*self.psifinal[z]
 	        # and add it in
 		thisVex -= Vex
