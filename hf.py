@@ -468,7 +468,7 @@ class Orbital:
 	    # are consistent.
             # as they are not, the discrepancy is used to return the "bestdE", which has the variation one
 	    # should apply in the energy to get a better solution, to first order
-            [self.y, self.yp, self.yfinal, self.icl, self.no, self.nop, bestdE] = self.solve(self.r, self.V + self.Vd, self.Vex, self.E)
+            [self.y, self.yp, self.yfinal, self.icl, self.no, self.nop, bestdE] = self.solve(self.r, self.V + self.Vd, -self.Vex, self.E)
 
             dE = 0 # delta E to be used to shift energy
 
@@ -713,16 +713,16 @@ def plotPotential(r, V, Vhf, Vex, psi_final, name):
     idxn = idxn[0][0]
     plt.clf()
     Vtot = np.zeros(len(r), dtype = np.longdouble)
-    plt.plot(r[idxn:idx]*nm, V[idxn:idx]*eV, 'r--', linewidth=2, label='Nucleus potential')
-    plt.plot(r[idxn:idx]*nm, Vhf[idxn:idx]*eV, 'g--', linewidth=2, label='HF direct potential')
+    plt.plot(r[idxn:idx]*nm, V[idxn:idx]*psi_final[idxn:idx]*eV, 'r--', linewidth=2, label='Nucleus potential')
+    plt.plot(r[idxn:idx]*nm, Vhf[idxn:idx]*psi_final[idxn:idx]*eV, 'g--', linewidth=2, label='HF direct potential')
     exPot = Vex
-    for i in range(idxn, idx):
-        if np.fabs(psi_final[i]) > 1e-1:
-	    exPot[i] = exPot[i]/psi_final[i]
-	else:
-	    exPot[i] = 0
+#    for i in range(idxn, idx):
+#        if np.fabs(psi_final[i]) > 1e-1:
+#	    exPot[i] = exPot[i]/psi_final[i]
+#	else:
+#	    exPot[i] = 0
     plt.plot(r[idxn:idx]*nm, exPot[idxn:idx]*eV, 'g-.', linewidth=2, label='HF exchange potential')
-    Vtot = V + Vhf + exPot
+    Vtot = V*psi_final + Vhf*psi_final + exPot
     plt.plot(r[idxn:idx]*nm, Vtot[idxn:idx]*eV, 'b-', linewidth=2, label='Total')
     plt.legend(('Nucleus potential', 'HF direct potential', 'HF exchange potential', 'Total'), frameon=False, loc = 'center right')
     plt.xlabel('$r$ [nm]')
@@ -744,16 +744,16 @@ def fitPotential(r, V, Vhf, Vex, psi_final, name):
     idxn = idxn[0][0]
     plt.clf()
     Vtot = np.zeros(len(r), dtype = np.longdouble)
-    plt.plot(r[idxn:idx]*nm, V[idxn:idx]*eV, 'r--', linewidth=2, label='Nucleus potential')
-    plt.plot(r[idxn:idx]*nm, Vhf[idxn:idx]*eV, 'g--', linewidth=2, label='HF direct potential')
+    plt.plot(r[idxn:idx]*nm, V[idxn:idx]*psi_final[idxn:idx]*eV, 'r--', linewidth=2, label='Nucleus potential')
+    plt.plot(r[idxn:idx]*nm, Vhf[idxn:idx]*psi_final[idxn:idx]*eV, 'g--', linewidth=2, label='HF direct potential')
     exPot = Vex
-    for i in range(idxn, idx):
-        if np.fabs(psi_final[i]) > 1e-1:
-	    exPot[i] = exPot[i]/psi_final[i]
-	else:
-	    exPot[i] = 0
+#    for i in range(idxn, idx):
+#        if np.fabs(psi_final[i]) > 1e-1:
+#	    exPot[i] = exPot[i]/psi_final[i]
+#	else:
+#	    exPot[i] = 0
     plt.plot(r[idxn:idx]*nm, exPot[idxn:idx]*eV, 'g-.', linewidth=2, label='HF exchange potential')
-    Vtot = V + Vhf + exPot
+    Vtot = V*psi_final + Vhf*psi_final + exPot
     plt.plot(r[idxn:idx]*nm, Vtot[idxn:idx]*eV, 'b-', linewidth=2, label='Total')
     Vfit = None
     fitSuccessful = False
@@ -851,8 +851,8 @@ def plotWaveFunction(r, psi_final, V, Vd, Vex, E, n, l, name, limit = True):
     for tl in ax1.get_yticklabels():
         tl.set_color('r')
     ax2 = ax1.twinx()
-    ax2.plot(r[idxlp:idx]*nm, V[idxlp:idx]*eV, 'b--', linewidth=2, label='Nucleus pot.')
-    ax2.plot(r[idxlp:idx]*nm, Vd[idxlp:idx]*eV, 'b-.', linewidth=2, label='HF direct pot.')
+    ax2.plot(r[idxlp:idx]*nm, V[idxlp:idx]*psi_final[idxlp:idx]*eV, 'b--', linewidth=2, label='Nucleus pot.')
+    ax2.plot(r[idxlp:idx]*nm, Vd[idxlp:idx]*psi_final[idxlp:idx]*eV, 'b-.', linewidth=2, label='HF direct pot.')
     exPot = Vex
 #    for i in range(idxl, idx):
 #        if np.fabs(psi_final[i]) > 1e-1:
@@ -860,7 +860,7 @@ def plotWaveFunction(r, psi_final, V, Vd, Vex, E, n, l, name, limit = True):
 #	else:
 #	    exPot[i] = 0
     ax2.plot(r[idxlp:idx]*nm, exPot[idxlp:idx]*eV, 'b:', linewidth=2, label='HF exchange pot.')
-    ax2.plot(r[idxlp:idx]*nm, (V+Vd+exPot)[idxlp:idx]*eV, 'b-', linewidth=2, label='Total pot.')
+    ax2.plot(r[idxlp:idx]*nm, (V*psi_final+Vd*psi_final+exPot)[idxlp:idx]*eV, 'b-', linewidth=2, label='Total pot.')
     ax2.plot(r[idxlp:idx]*nm, E*np.ones(idx-idxlp)*eV, 'g--', linewidth=2, label='Energy')
     ax2.set_xlabel('$r$ [nm]')
     ax2.set_ylabel('Energy [eV]')
