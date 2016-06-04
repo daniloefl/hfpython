@@ -29,8 +29,8 @@ dx = 1e-3
 
 # precision required when scanning energies
 # change in energies in separate steps must be < eps for convergence
-#eps = 1e-10
 eps = 1e-11
+#eps = 1e-5
 
 # minimum value of r in the grid is rmin = exp(xmin)/Z
 xmin = np.log(1e-4)
@@ -48,7 +48,7 @@ xmin = np.log(1e-4)
 # (r is in Bohr radius units (a_0) ... here a_0 = 1)
 # (6 Hydrogen atom radii seem reasonable, bu with N =14000, you can get 120 H radii)
 # 13000 -> 44 H radii
-N = 14000
+N = 15000
 
 # Coulomb potential
 def Vcoulomb(r, Z):
@@ -149,10 +149,10 @@ def getAF(r, pot, ind, E, l, m):
 	# where R_i are wave functions for other orbitals
 	# in the equation, V_2 should be multiplying y_i, since we applied the transformation R->y
 	# for solving the equation, to express it as derivatives in x and not r and to remove the singularity in r
-	# we need to multiply V_2 by sqrt(r) to transform it into sum_i C_i * y_i instead
+	# we need to multiply V_2 by sqrt(r) to transform it into sum_i C_i * y_i instead (done in load*())
 	# also, looking above, we need the extra factor 2*m*r^2
 	# finally, we also include the dx^2/12 term, which is needed for Numerov's equation
-  	s[i] = (dx**2)/12.0*(ind[i]*np.sqrt(r[i]))*2*m*(r[i]**2)
+  	s[i] = (dx**2)/12.0*(ind[i])*2*m*(r[i]**2)
         if icl < 0 and i >= 1 and a[i]*a[i-1] < 0:
             icl = i
     return [a, f, s, icl]
@@ -178,6 +178,8 @@ class Orbital:
 
     Vd = None      # Hartree-Fock Coulomb potential
     Vex = None     # Hartree-Fock exchange potential
+    VexForPlot = None # Hartree-Fock exchange potential, weighted by the other orbital/this orbital, so it can be shown as a potential of the current orbital in plots ... irrelevant for calculations: only shown in plots
+    VdForPlot = None # Hartree-Fock exchange potential, weighted by the other orbital/this orbital, so it can be shown as a potential of the current orbital in plots ... irrelevant for calculations: only shown in plots
     Hex = None     # Hartree-Fock exchange energy
     psifinal = None # final, normalised R(r) function (full radial WF is r*R(r))
 
@@ -200,6 +202,8 @@ class Orbital:
 	self.V = Vcoulomb(self.r, self.Z)
 	self.Vd = np.zeros(len(r), dtype = np.longdouble)
 	self.Vex = np.zeros(len(r), dtype = np.longdouble)
+	self.VexForPlot = np.zeros(len(r), dtype = np.longdouble)
+	self.VdForPlot = np.zeros(len(r), dtype = np.longdouble)
 	self.Hex = np.zeros(len(r), dtype = np.longdouble)
 	self.spin = _spin
 	pass
@@ -241,8 +245,11 @@ class Orbital:
 	# -> y = exp((l+0.5) x)   # notice that x -> -infinity means exp(x) converges not exp(-x)
 	# -> y = exp((l+0.5) ln(Zr)) = (Zr)^(l+0.5)
 	N = 1
-        y[0] = ((self.Z*self.r[0])**(np.sqrt((self.l+0.5)**2)))/N
-        y[1] = ((self.Z*self.r[1])**(np.sqrt((self.l+0.5)**2)))/N
+	# if there is a previous solution, use it for the normalisation
+	#if self.psifinal != None:
+	#    N = (self.psifinal[0]*np.sqrt(r[0]))/((self.Z*self.r[0])**(np.sqrt((self.l+0.5)**2)))
+        y[0] = ((self.Z*self.r[0])**(np.sqrt((self.l+0.5)**2)))*N
+        y[1] = ((self.Z*self.r[1])**(np.sqrt((self.l+0.5)**2)))*N
         for i in range(1, len(r)-1):
 	    if f[i+1] != 0:
       	        y[i+1] = ((12 - f[i]*10)*y[i] - f[i-1]*y[i-1] + (indepTerm[i+1] + 10.0*indepTerm[i] + indepTerm[i-1]))/f[i+1]
@@ -261,9 +268,11 @@ class Orbital:
     def inwardSolution(self, m, indepTerm, E, f):
         yp = np.zeros(len(self.r), dtype = np.longdouble)
         nop = 0
-  	N = 10.0
-        yp[len(self.r)-1] = np.exp(-np.sqrt(-2*m*E)*self.r[len(self.r)-1])/N
-        yp[len(self.r)-2] = np.exp(-np.sqrt(-2*m*E)*self.r[len(self.r)-2])/N
+  	N = 1e-1
+	#if self.psifinal != None:
+	#    N = (self.psifinal[0]*np.sqrt(r[0]))
+        yp[len(self.r)-1] = np.exp(-np.sqrt(-2*m*E)*self.r[len(self.r)-1])*N
+        yp[len(self.r)-2] = np.exp(-np.sqrt(-2*m*E)*self.r[len(self.r)-2])*N
         for i in reversed(range(1, len(self.r)-1)):
 	    if f[i-1] != 0:
                 yp[i-1] = ((12 - f[i]*10)*yp[i] - f[i+1]*yp[i+1] + (indepTerm[i+1] + 10.0*indepTerm[i] + indepTerm[i-1]))/f[i-1];
@@ -406,8 +415,8 @@ class Orbital:
             dE_inf = 0.1*E
             # recalculate the solution with a slihtly varied E
             [ap_inf, fp_inf, sp_inf, iclp_inf] = getAF(r, pot, indepTerm, E+dE_inf, self.l, m)
-            [y_ep_inf, no_ep_inf] = self.outwardSolution(m, sp_inf, E+dE_inf, fp)
-            [yp_ep_inf, nop_ep_inf] = self.inwardSolution(m, sp_inf, E+dE_inf, fp)
+            [y_ep_inf, no_ep_inf] = self.outwardSolution(m, sp_inf, E+dE_inf, fp_inf)
+            [yp_ep_inf, nop_ep_inf] = self.inwardSolution(m, sp_inf, E+dE_inf, fp_inf)
             y_ep_ren_inf = self.matchInOut(y_ep_inf, yp_ep_inf, icl)
             F_curr = y[len(r)-1]
 	    F_diff = y_ep_inf[len(r)-1] - y[len(r)-1]
@@ -454,7 +463,6 @@ class Orbital:
     def solveWithCurrentPotential(self, label = 1):
         self.Emax = 0
 	self.Emin = -self.Z**2-10
-	self.E = 0.5*(self.Emax+self.Emin)
         Nscale = 1.0
 	mismatchNodes = False
         for i in range(0, self.Niter):
@@ -468,7 +476,7 @@ class Orbital:
 	    # are consistent.
             # as they are not, the discrepancy is used to return the "bestdE", which has the variation one
 	    # should apply in the energy to get a better solution, to first order
-            [self.y, self.yp, self.yfinal, self.icl, self.no, self.nop, bestdE] = self.solve(self.r, self.V + self.Vd, -self.Vex, self.E)
+            [self.y, self.yp, self.yfinal, self.icl, self.no, self.nop, bestdE] = self.solve(self.r, self.V + self.Vd + self.Vex, np.zeros(len(self.r)), self.E)
 
             dE = 0 # delta E to be used to shift energy
 
@@ -524,7 +532,7 @@ class Orbital:
             self.psifinal = toPsi(self.r, self.yfinal)
 	    # only plot it sometimes, as I don't have patience otherwise
 	    if i % 10 == 0:
-  	        plotWaveFunction(r, self.psifinal, self.V, self.Vd, self.Vex, self.E, self.n, self.l, 'lastwf.eps')
+  	        plotWaveFunction(r, self.psifinal, self.V, self.VdForPlot, self.VexForPlot, self.E, self.n, self.l, 'lastwf.eps')
 
             # save previous dE
 	    # can be useful to debug
@@ -552,8 +560,8 @@ class Orbital:
                 break
         print "->  Final result for orbital, E = ", self.E*eV, " eV, dE = ", dE*eV, " eV, nodes = ", self.no, self.nop, len(nodesList), ", expected nodes = ", self.nodes(), ", crossing zero at = ", self.icl, ", with zero crossings at i = ", nodesList, ", r[zeros] = ", self.r[nodesList]
 
-  	plotWaveFunction(r, self.psifinal, self.V, self.Vd, self.Vex, self.E, self.n, self.l, 'wf_'+str(label)+'.eps')
-  	plotWaveFunction(r, self.psifinal, self.V, self.Vd, self.Vex, self.E, self.n, self.l, 'wf_'+str(label)+'_nolimit.eps', limit = False)
+  	plotWaveFunction(r, self.psifinal, self.V, self.VdForPlot, self.VexForPlot, self.E, self.n, self.l, 'wf_'+str(label)+'.eps')
+  	plotWaveFunction(r, self.psifinal, self.V, self.VdForPlot, self.VexForPlot, self.E, self.n, self.l, 'wf_'+str(label)+'_nolimit.eps', limit = False)
 
     # calculates the Vd = sum_orbitals integral psi_orb^2/r dr
     # calculates also Vex = sum orbitals integral psi_orb psi_this_orbital/r dr
@@ -561,8 +569,6 @@ class Orbital:
     # For Helium, Vex = Vd/2, from the Virial Theorem, so we just need
     # to return Vd/2
     def loadHartreeFockPotential(self, orbitalList, orbKey):
-        #thisVhf = np.zeros(len(self.r), dtype = np.longdouble)
-
         # must calculate
 	# Vd = sum_{orb} int R(r')^2/(r-r') Y(theta', phi')^2 r'^2 sin theta' dr dtheta dphi
 	# Vex = sum_{orb same spin} int R_this(r') R_other(r')/(r - r') Y(theta', phi')^2 r'^2 sin theta' dr dtheta dphi
@@ -584,7 +590,9 @@ class Orbital:
 	# Vd(r'-h) = Vd(r') - int_r'-h^r' E . dr
 
 	thisVd = np.zeros(len(r), dtype = np.longdouble)
+	thisVdForPlot = np.zeros(len(r), dtype = np.longdouble)
 	thisVex = np.zeros(len(r), dtype = np.longdouble)
+	thisVexForPlot = np.zeros(len(r), dtype = np.longdouble)
 	thisHex = np.zeros(len(r), dtype = np.longdouble)
         for orbitalName in orbitalList: # go through 1s, 2s, 2p, etc.
 	    k = 0
@@ -629,6 +637,9 @@ class Orbital:
 		# Vd(r-h) = Vd(r) + E(r)*dr
 		for z in reversed(range(0, len(self.r)-1)):
                     Vd[z] = Vd[z+1] + E[z]*(self.r[z+1] - self.r[z])
+		for z in range(0, len(self.r)):
+		    thisVdForPlot[z] += Vd[z]
+		    #Vd[z] *= self.psifinal[z]*np.sqrt(self.r[z])
 		# for Helium, final Vhf = 0.5 Vd
 		# not calculating Vex now: this makes it specific to Helium
 		# the fact that Vex = 0.5 Vd is only true for Helium
@@ -673,6 +684,7 @@ class Orbital:
 		    # this is E:
 		    E[z] = Q/(4*np.pi*self.r[z]**2)
                 Vex = np.zeros(len(self.r), dtype = np.longdouble)
+                VexForPlot = np.zeros(len(self.r), dtype = np.longdouble)
                 Hex = np.zeros(len(self.r), dtype = np.longdouble)
 		# now Vex will be integrated as sum r'=inf^r E(r) dr
 		# in principle Vex = 0 for r = inf,
@@ -680,8 +692,8 @@ class Orbital:
 		# in any case, the potential in r = r_max is due
 		# to the charge contained
 		# in r_max:
-		Vex[len(self.r)-1] = Q/self.r[len(self.r)-1]
-		Hex[len(self.r)-1] = Q/self.r[len(self.r)-1]
+		Vex[len(self.r)-1] = 0 #Q/self.r[len(self.r)-1]
+		Hex[len(self.r)-1] = 0 #Q/self.r[len(self.r)-1]
 		# now integrate backwards
 		# Vex(r) = int_inf^r E(r') dr'
 		# Vex(r-h) = int_inf^r E(r') dr' + int_r^r-h E(r') dr'
@@ -689,40 +701,45 @@ class Orbital:
 		for z in reversed(range(0, len(self.r)-1)):
                     Vex[z] = Vex[z+1] + E[z]*(self.r[z+1] - self.r[z])
                     Hex[z] = Hex[z+1] + E[z]*(self.r[z+1] - self.r[z])
+		norm = self.yfinal[0]/orbPsi.yfinal[0]
+		maxPsi = np.max(self.psifinal)
 		for z in range(0, len(self.r)):
-    		    Vex[z] *= orbPsi.psifinal[z]
+		    if np.fabs(self.psifinal[z]/maxPsi) > 1e-2:
+       		        VexForPlot[z] = Vex[z]*orbPsi.psifinal[z]/self.psifinal[z]
+		    else:
+       		        VexForPlot[z] = Vex[z]*orbPsi.psifinal[z]
+		    if np.fabs(self.psifinal[z]/maxPsi) > 1e-2:
+                        Vex[z] *= orbPsi.psifinal[z]/self.psifinal[z]
+		    else:
+                        Vex[z] *= 0
   		    Hex[z] *= orbPsi.psifinal[z]*self.psifinal[z]
 	        # and add it in
 		thisVex -= Vex
-                #thisVhf -= Vex
+		thisVexForPlot -= VexForPlot
 		thisHex -= Hex
 	# this (alledgedly) helps in the convergence
 	# should be just this otherwise:
-	#self.Vhf = thisVhf
 	print "Sum Vex", np.sum(thisVex)
 	print "Sum Vd", np.sum(thisVd)
-	self.Vd = 0.7*self.Vd + 0.3*thisVd
-  	self.Vex = 0.7*self.Vex + 0.3*thisVex
-  	self.Hex = 0.7*self.Hex + 0.3*thisHex
+	alpha = 0.5
+	self.Vd = alpha*self.Vd + (1-alpha)*thisVd
+  	self.Vex = alpha*self.Vex + (1-alpha)*thisVex
+  	self.Hex = alpha*self.Hex + (1-alpha)*thisHex
+	self.VexForPlot = alpha*self.VexForPlot + (1-alpha)*thisVexForPlot
+	self.VdForPlot = alpha*self.VdForPlot + (1-alpha)*thisVdForPlot
                 
 
-def plotPotential(r, V, Vhf, Vex, psi_final, name):
+def plotPotential(r, V, Vd, Vex, psi_final, name):
     idx = np.where(r > 1.5)
     idx = idx[0][0]
     idxn = np.where(r > 0.05)
     idxn = idxn[0][0]
     plt.clf()
     Vtot = np.zeros(len(r), dtype = np.longdouble)
-    plt.plot(r[idxn:idx]*nm, V[idxn:idx]*psi_final[idxn:idx]*eV, 'r--', linewidth=2, label='Nucleus potential')
-    plt.plot(r[idxn:idx]*nm, Vhf[idxn:idx]*psi_final[idxn:idx]*eV, 'g--', linewidth=2, label='HF direct potential')
-    exPot = Vex
-#    for i in range(idxn, idx):
-#        if np.fabs(psi_final[i]) > 1e-1:
-#	    exPot[i] = exPot[i]/psi_final[i]
-#	else:
-#	    exPot[i] = 0
-    plt.plot(r[idxn:idx]*nm, exPot[idxn:idx]*eV, 'g-.', linewidth=2, label='HF exchange potential')
-    Vtot = V*psi_final + Vhf*psi_final + exPot
+    plt.plot(r[idxn:idx]*nm, V[idxn:idx]*eV, 'r--', linewidth=2, label='Nucleus potential')
+    plt.plot(r[idxn:idx]*nm, Vd[idxn:idx]*eV, 'g--', linewidth=2, label='HF direct potential')
+    plt.plot(r[idxn:idx]*nm, Vex[idxn:idx]*eV, 'g-.', linewidth=2, label='HF exchange potential')
+    Vtot = V + Vd + Vex
     plt.plot(r[idxn:idx]*nm, Vtot[idxn:idx]*eV, 'b-', linewidth=2, label='Total')
     plt.legend(('Nucleus potential', 'HF direct potential', 'HF exchange potential', 'Total'), frameon=False, loc = 'center right')
     plt.xlabel('$r$ [nm]')
@@ -737,23 +754,17 @@ from scipy.optimize import curve_fit
 def zFitFunction(r, Z, C1, C2, C3):
     return -Z/r + (C1 + C2/r)*np.exp(-C3*r)
 
-def fitPotential(r, V, Vhf, Vex, psi_final, name):
+def fitPotential(r, V, Vd, Vex, psi_final, name):
     idx = np.where(r > 1)
     idx = idx[0][0]
     idxn = np.where(r > 0.1)
     idxn = idxn[0][0]
     plt.clf()
     Vtot = np.zeros(len(r), dtype = np.longdouble)
-    plt.plot(r[idxn:idx]*nm, V[idxn:idx]*psi_final[idxn:idx]*eV, 'r--', linewidth=2, label='Nucleus potential')
-    plt.plot(r[idxn:idx]*nm, Vhf[idxn:idx]*psi_final[idxn:idx]*eV, 'g--', linewidth=2, label='HF direct potential')
-    exPot = Vex
-#    for i in range(idxn, idx):
-#        if np.fabs(psi_final[i]) > 1e-1:
-#	    exPot[i] = exPot[i]/psi_final[i]
-#	else:
-#	    exPot[i] = 0
-    plt.plot(r[idxn:idx]*nm, exPot[idxn:idx]*eV, 'g-.', linewidth=2, label='HF exchange potential')
-    Vtot = V*psi_final + Vhf*psi_final + exPot
+    plt.plot(r[idxn:idx]*nm, V[idxn:idx]*eV, 'r--', linewidth=2, label='Nucleus potential')
+    plt.plot(r[idxn:idx]*nm, Vd[idxn:idx]*eV, 'g--', linewidth=2, label='HF direct potential')
+    plt.plot(r[idxn:idx]*nm, Vex[idxn:idx]*eV, 'g-.', linewidth=2, label='HF exchange potential')
+    Vtot = V + Vd + Vex
     plt.plot(r[idxn:idx]*nm, Vtot[idxn:idx]*eV, 'b-', linewidth=2, label='Total')
     Vfit = None
     fitSuccessful = False
@@ -843,7 +854,7 @@ def plotWaveFunction(r, psi_final, V, Vd, Vex, E, n, l, name, limit = True):
     ax1.plot(r[idxl:idx]*nm, psi_final[idxl:idx], 'r-', linewidth=2, label='$R(r)$')
     if n < 4:
         ax1.plot(r[idxl:idx]*nm, exact[idxl:idx], 'r:', linewidth=1, label='H, '+Htit)
-        ax1.legend(('$R(r)$', 'H '+Htit), frameon=False, loc = 'lower right')
+        ax1.legend(('$R(r)$', 'H, '+Htit), frameon=False, loc = 'lower right')
     else:
         ax1.legend(('$R(r)$'), frameon=False, loc = 'lower right')
     ax1.set_xlabel('$r$ [nm]')
@@ -851,22 +862,18 @@ def plotWaveFunction(r, psi_final, V, Vd, Vex, E, n, l, name, limit = True):
     for tl in ax1.get_yticklabels():
         tl.set_color('r')
     ax2 = ax1.twinx()
-    ax2.plot(r[idxlp:idx]*nm, V[idxlp:idx]*psi_final[idxlp:idx]*eV, 'b--', linewidth=2, label='Nucleus pot.')
-    ax2.plot(r[idxlp:idx]*nm, Vd[idxlp:idx]*psi_final[idxlp:idx]*eV, 'b-.', linewidth=2, label='HF direct pot.')
-    exPot = Vex
-#    for i in range(idxl, idx):
-#        if np.fabs(psi_final[i]) > 1e-1:
-#	    exPot[i] = exPot[i]/psi_final[i]
-#	else:
-#	    exPot[i] = 0
-    ax2.plot(r[idxlp:idx]*nm, exPot[idxlp:idx]*eV, 'b:', linewidth=2, label='HF exchange pot.')
-    ax2.plot(r[idxlp:idx]*nm, (V*psi_final+Vd*psi_final+exPot)[idxlp:idx]*eV, 'b-', linewidth=2, label='Total pot.')
+    ax2.plot(r[idxlp:idx]*nm, V[idxlp:idx]*eV, 'b--', linewidth=2, label='Nucleus pot.')
+    ax2.plot(r[idxlp:idx]*nm, Vd[idxlp:idx]*eV, 'b-.', linewidth=2, label='HF direct pot.')
+    ax2.plot(r[idxlp:idx]*nm, Vex[idxlp:idx]*eV, 'b:', linewidth=2, label='HF exchange pot.')
+    ax2.plot(r[idxlp:idx]*nm, (V+Vd+Vex)[idxlp:idx]*eV, 'b-', linewidth=2, label='Total pot.')
     ax2.plot(r[idxlp:idx]*nm, E*np.ones(idx-idxlp)*eV, 'g--', linewidth=2, label='Energy')
     ax2.set_xlabel('$r$ [nm]')
     ax2.set_ylabel('Energy [eV]')
+    ax2.set_ylim(2*E*eV, Vd[idxlp]*eV - E*eV)
     for tl in ax2.get_yticklabels():
         tl.set_color('b')
-    ax2.legend(('Nucleus pot.', 'HF direct pot.', 'HF exchange pot.', 'Total pot.', 'Energy'), frameon = False, loc = 'center right')
+    ax2.legend(('Nucleus pot.', 'HF direct pot.', 'HF exchange pot.', 'Total pot.', 'Energy'), frameon = False, loc = 'upper right')
+    #ax2.legend(('Nucleus pot.', 'HF direct pot.', 'Total pot.', 'Energy'), frameon = False, loc = 'center right')
     plt.title('')
     plt.draw()
     #plt.show()
@@ -884,7 +891,8 @@ def calculateTotalEnergy(orbitalList):
 		if z < len(orbPsi.r)-1:
 		    dr = orbPsi.r[z+1] - orbPsi.r[z]
 		# should have 4*pi*Y^2, but for s orbitals Y^2 = 1/4pi
-  	        JmK += (orbPsi.Vd[z]*orbPsi.psifinal[z]**2)*(orbPsi.r[z]**2)*dr - orbPsi.Hex[z]*(orbPsi.r[z]**2)*dr
+  	        #JmK += (orbPsi.Vd[z]*orbPsi.psifinal[z]**2)*(orbPsi.r[z]**2)*dr - orbPsi.Hex[z]*(orbPsi.r[z]**2)*dr
+  	        JmK += (orbPsi.VdForPlot[z]*orbPsi.psifinal[z]**2)*(orbPsi.r[z]**2)*dr - orbPsi.Hex[z]*(orbPsi.r[z]**2)*dr
     print "J-K", JmK
     E0 += -0.5*JmK
     return E0
@@ -960,8 +968,8 @@ while hfIter < 30:
 	        highestE = orb[k][item].E
 		externOrb = k
 		externIdx = item
-    plotPotential(r, orb[externOrb][externIdx].V, orb[externOrb][externIdx].Vd, orb[externOrb][externIdx].Vex, orb[externOrb][externIdx].psifinal, 'potential_hfIter'+str(hfIter)+'.eps')
-    fitPotential(r, orb[externOrb][externIdx].V, orb[externOrb][externIdx].Vd, orb[externOrb][externIdx].Vex, orb[externOrb][externIdx].psifinal, 'potentialFit_hfIter'+str(hfIter)+'.eps')
+    plotPotential(r, orb[externOrb][externIdx].V, orb[externOrb][externIdx].Vd, orb[externOrb][externIdx].VexForPlot, orb[externOrb][externIdx].psifinal, 'potential_hfIter'+str(hfIter)+'.eps')
+    fitPotential(r, orb[externOrb][externIdx].V, orb[externOrb][externIdx].Vd, orb[externOrb][externIdx].VexForPlot, orb[externOrb][externIdx].psifinal, 'potentialFit_hfIter'+str(hfIter)+'.eps')
 
     # calculate ground state energy
     E_gs = calculateTotalEnergy(orb)
