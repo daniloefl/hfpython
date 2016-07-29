@@ -55,7 +55,7 @@ def outwardSolution(r, l, Z, f):
     for i in range(1, len(r)-1):
 	y[i+1] = ((12 - f[i]*10)*y[i] - f[i-1]*y[i-1])/f[i+1]
     for i in range(1, len(r)-1):
-	if y[i]*y[i+1] < 0:
+	if y[i]*y[i+1] < 0 and r[i] < 10:
 	    no += 1
     return [y, no]
 
@@ -75,7 +75,7 @@ def inwardSolution(r, l, Z, f, E):
 	    yp[j] /= yp[i-1]
 
     for i in reversed(range(1, len(r)-1)):
-	if yp[i-1]*yp[i] < 0:
+	if yp[i-1]*yp[i] < 0 and r[i] < 10:
 	    nop += 1
     return [yp, nop]
 
@@ -180,6 +180,10 @@ def getPotentialH(r, nu, nd):
     # 1) calculate Q(r) = 4*pi*sum_r'=0^r rho(r)*r^2*dr
     # 2) calculate E(r) = Q(r)/(4*pi*r^2)
     # 3) calculate Vd(r) = sum_r'=inf^r E(r)*dr
+    Eu = np.zeros(len(r))
+    Qu = 0
+    Ed = np.zeros(len(r))
+    Qd = 0
     E = np.zeros(len(r))
     Q = 0
     for z in range(0, len(r)):
@@ -188,19 +192,29 @@ def getPotentialH(r, nu, nd):
             dr = r[z] - r[z-1]
         else:
             dr = r[z]
-        Q += 4*np.pi*(nu[z]+nd[z])*r[z]**2*dr
+        Qu += 4*np.pi*nu[z]*r[z]**2*dr
+        Qd += 4*np.pi*nd[z]*r[z]**2*dr
+        Q += 4*np.pi*(nu[z] + nd[z])*r[z]**2*dr
         # this is E:
+        Eu[z] = Qu/(4*np.pi*r[z]**2)
+        Ed[z] = Qd/(4*np.pi*r[z]**2)
         E[z] = Q/(4*np.pi*r[z]**2)
+    Vu = np.zeros(len(r))
     Vd = np.zeros(len(r))
+    V = np.zeros(len(r))
 
+    Vu[len(r)-1] = 0
     Vd[len(r)-1] = 0
+    V[len(r)-1] = 0
     # now integrate backwards
     # Vd(r) = int_inf^r E(r') dr'
     # Vd(r-h) = int_inf^r E(r') dr' + int_r^r-h E(r') dr'
     # Vd(r-h) = Vd(r) + E(r)*dr
     for z in reversed(range(0, len(r)-1)):
-        Vd[z] = Vd[z+1] + E[z]*(r[z+1] - r[z])
-    return Vd
+        Vu[z] = Vu[z+1] + Eu[z]*(r[z+1] - r[z])
+        Vd[z] = Vd[z+1] + Ed[z]*(r[z+1] - r[z])
+        V[z] = V[z+1] + E[z]*(r[z+1] - r[z])
+    return [Vu, Vd, V]
 
 def getPotentialXC(r, nu, nd):
     # E_xc = -3/4 (3/pi)^(1/3) 4*pi int n(r)^(4/3) r^2 dr
@@ -221,8 +235,8 @@ def getPotentialXC(r, nu, nd):
     dednd = np.zeros(len(r))
     for z in range(0, len(r)):
         dedn[z] = -3.0/4.0*(3.0/np.pi)**(1.0/3.0)*(4.0/3.0)*(nu[z] + nd[z])**(1.0/3.0)
-        dednu[z] = -3.0/4.0*(3.0/np.pi)**(1.0/3.0)*(4.0/3.0)*(nu[z])**(1.0/3.0)
-        dednd[z] = -3.0/4.0*(3.0/np.pi)**(1.0/3.0)*(4.0/3.0)*(nd[z])**(1.0/3.0)
+        dednu[z] = -3.0/4.0*(3.0/np.pi)**(1.0/3.0)*( (4.0/3.0)*(nu[z])**(1.0/3.0) ) # + nd[z]**(4.0/3.0))
+        dednd[z] = -3.0/4.0*(3.0/np.pi)**(1.0/3.0)*( (4.0/3.0)*(nd[z])**(1.0/3.0) ) # + nu[z]**(4.0/3.0))
 
     vxc = np.zeros(len(r))
     vxcu = np.zeros(len(r))
@@ -231,7 +245,7 @@ def getPotentialXC(r, nu, nd):
         vxc[z] = dedn[z]
         vxcu[z] = dednu[z]
         vxcd[z] = dednd[z]
-    return [vxcu, vxcd, exc]
+    return [vxcu, vxcd, vxc, excu, excd, exc]
 
 def calculateE0(listPhi, r, nu, nd):
     E0 = 0
@@ -239,7 +253,10 @@ def calculateE0(listPhi, r, nu, nd):
         E0 += listPhi[iOrb].E
 
     # add - 1/2 int int dr dr' n(r) n(r')/(r-r') - int dr n(r) V_xc(r) + E_xc
-    vh = getPotentialH(r, nu, nd)
+    #  =  - 1/2 int dr n(r) vh(r) - int dr n(r) V_xc(r) + E_xc
+    # in what follows everything is divided by 4 pi to compensate the normalisation of the
+    # spherical harmonics (which we assume to be as in Hydrogen)
+    [vu, vd, vh] = getPotentialH(r, nu, nd)
 
     Qh = 0
     for z in range(0, len(r)):
@@ -248,9 +265,9 @@ def calculateE0(listPhi, r, nu, nd):
             dr = r[z] - r[z-1]
         else:
             dr = r[z]
-        Qh += 4*np.pi*(vh[z]*(nu[z] + nd[z]))*r[z]**2*dr
+        Qh += 4*np.pi*(vu[z]*nu[z]+vd[z]*nd[z])*r[z]**2*dr/(4*np.pi)
 
-    [vxcu, vxcd, exc] = getPotentialXC(r, nu, nd)
+    [vxcu, vxcd, vxc, excu, excd, exc] = getPotentialXC(r, nu, nd)
     Qxc = 0
     Exc = 0
     for z in range(0, len(r)):
@@ -259,10 +276,17 @@ def calculateE0(listPhi, r, nu, nd):
             dr = r[z] - r[z-1]
         else:
             dr = r[z]
-        Qxc += 4*np.pi*(vxcu[z]*nu[z] + vxcd[z]*nd[z])*r[z]**2*dr
-        Exc += 4*np.pi*(exc[z])*r[z]**2*dr
+        Qxc += 4*np.pi*(vxcu[z]*nu[z] + vxcd[z]*nd[z])*r[z]**2*dr/(4*np.pi)
+        #Qxc += 4*np.pi*(vxc[z]*(nu[z] + nd[z]))*r[z]**2*dr/(4*np.pi)
+        #Exc += 4*np.pi*(excu[z] + excd[z])*r[z]**2*dr/(4*np.pi)
+        Exc += 4*np.pi*(exc[z])*r[z]**2*dr/(4*np.pi)
 
+    print "sum epsilon = %4f eV" % (E0*eV)
+    print "-0.5Qh      = %4f eV" % (-0.5*Qh*eV)
+    print "-Qxc        = %4f eV" % (-Qxc*eV)
+    print "Exc         = %4f eV" % (Exc*eV)
     E0 += -0.5*Qh - Qxc + Exc
+    print "E0          = %4f eV" % (E0*eV)
     return E0
 
 class phi:
@@ -278,15 +302,17 @@ class phi:
         self.E = _E
         self.r = _r
 
-Z = 2
+Z = 4
 Einit = -2.0
 
-dx = 1e-3
-r = init(dx, 13000, np.log(1e-4))
+dx = 1e-2/Z
+r = init(dx, Z*1400, np.log(1e-4))
 
 listPhi = {}
 listPhi['1s1+'] = phi(1, 0, Einit, r)
 listPhi['1s1-'] = phi(1, 0, Einit, r)
+listPhi['2s1+'] = phi(2, 0, Einit, r)
+listPhi['2s1-'] = phi(2, 0, Einit, r)
 
 pot = V(r, Z)
 
@@ -298,25 +324,23 @@ E0 = 0
 Nscf = 100
 for iSCF in range(0, Nscf):
     for iOrb in listPhi.keys():
-        #pot_full = pot + 0.5*getPotentialH(r, n)
-        vh = getPotentialH(r, nu, nd)
-        [vxcu, vxcd, exc] = getPotentialXC(r, nu, nd)
-        print "sum of Vh, Vxce, Vxcd = ", np.sum(vh), np.sum(vxcu), np.sum(vxcd)
+        [vu, vd, vh] = getPotentialH(r, nu, nd)
+        [vxcu, vxcd, vxc, excu, excd, exc] = getPotentialXC(r, nu, nd)
         if '+' in iOrb:
-            pot_full = pot + vh + vxcu
-        else:
             pot_full = pot + vh + vxcd
+        else:
+            pot_full = pot + vh + vxcu
         Emax = -1e-3
         Emin = -20.0
-        for i in range(0,200):
+        for i in range(0,500):
             [y, yp, icl, no, nop, bestdE] = solve(r, dx, pot_full, listPhi[iOrb].n, listPhi[iOrb].l, listPhi[iOrb].E, Z)
             listPhi[iOrb].no = no
             listPhi[iOrb].nop = nop
             dE = 0
-            if listPhi[iOrb].no > nodes(listPhi[iOrb].n, listPhi[iOrb].l):
+            if listPhi[iOrb].nop > nodes(listPhi[iOrb].n, listPhi[iOrb].l):
 	        Emax = listPhi[iOrb].E-1e-15
                 dE = (Emax + Emin)*0.5 - listPhi[iOrb].E
-            elif listPhi[iOrb].no < nodes(listPhi[iOrb].n, listPhi[iOrb].l):
+            elif listPhi[iOrb].nop < nodes(listPhi[iOrb].n, listPhi[iOrb].l):
                 Emin = listPhi[iOrb].E+1e-15
 	        dE = (Emax + Emin)*0.5 - listPhi[iOrb].E
             else:
@@ -324,7 +348,7 @@ for iSCF in range(0, Nscf):
 	        if np.fabs(dE) > 0.5:
 	            dE = 0.5*dE/np.fabs(dE)
 
-            print "(", iOrb ,") Iteration ", i, ", E = ", listPhi[iOrb].E, ", dE = ", dE, ", nodes = ", no, nop, ", expected nodes = ", nodes(listPhi[iOrb].n, listPhi[iOrb].l), ", crossing zero at = ", icl
+            print "(", iOrb ,", SCF iter ",iSCF,") Iteration ", i, ", E = ", listPhi[iOrb].E*eV, " eV, dE = ", dE*eV, " eV, nodes = ", no, nop, ", expected nodes = ", nodes(listPhi[iOrb].n, listPhi[iOrb].l), ", crossing zero at = ", icl
             psi = toPsi(r, y)
             listPhi[iOrb].psi = psi
             psip = toPsi(r, yp)
@@ -337,6 +361,8 @@ for iSCF in range(0, Nscf):
             if np.fabs(dE) < 1e-8 or np.fabs(Emax - Emin) < 1e-5:
                 print "Converged to energy ", listPhi[iOrb].E*eV, " eV"
                 break
+    nu_old = nu
+    nd_old = nd
     for idx in range(0, len(nu)):
         nu[idx] = 0
         nd[idx] = 0
@@ -345,8 +371,15 @@ for iSCF in range(0, Nscf):
             nu += listPhi[iOrb].psi**2
         else:
             nd += listPhi[iOrb].psi**2
+    alpha = 1.0
+    nu = nu_old*(1-alpha) + nu*alpha
+    nd = nd_old*(1-alpha) + nu*alpha
+
     idx = np.where(r > 5)
-    idx = idx[0][0]
+    if len(idx[0]) != 0:
+        idx = idx[0][0]
+    else:
+        idx = len(r)-1
     plt.clf()
     leg = []
     exact_p = 2*np.exp(-r)   # solution for R(r) in Hydrogen, n = 1
@@ -357,22 +390,19 @@ for iSCF in range(0, Nscf):
         c += 1
         leg.append('%s (%5f eV)' % (iOrb, listPhi[iOrb].E*eV))
     plt.plot(r[0:idx], exact_p[0:idx], 'g--', label='$R_{exact}$')
-    leg.append('Exact H')
+    leg.append('Exact H (1s)')
 
     plt.legend(leg, frameon=False)
     plt.xlabel('$r$')
     plt.ylabel('$|R(r)|$')
-    plt.title('Z=%d, SCF iter=%d'%(Z, iSCF))
+    E0 = calculateE0(listPhi, r, nu, nd)
+    plt.title('Z=%d, SCF iter=%d, E_{0}=%4f eV'%(Z, iSCF, E0*eV))
     plt.draw()
     plt.savefig('pseudo_potentials.pdf', bbox_inches='tight')
     #plt.show()
 
-
-    E0 = 0
-    for iOrb in listPhi.keys():
-        E0 += listPhi[iOrb].E
-    if np.fabs(1 - E0_old/E0) < 1e-2:
-        print "Ground state energy changed by less than 1% (precisely by ", 100.0*np.fabs(1 - E0_old/E0),"%). E0 = ", E0*eV, "eV"
+    if np.fabs(1 - E0_old/E0) < 1e-3:
+        print "Ground state energy changed by less than 0.11% (by ", 100.0*np.fabs(1 - E0_old/E0),"%). E0 = ", E0*eV, "eV"
         break
     E0_old = E0
 
