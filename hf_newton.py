@@ -162,8 +162,9 @@ def getLinSyst(listPhi, r, pot, vd, vxc):
         # the HF equations will be written in each point in the function F
         # the final equation in F will be (sum psi^2*r^2*dr = 1)
         Nr = len(r)
-        N = len(listPhi)*Nr + len(listPhi)
+        N = len(listPhi)*Nr + len(listPhi) + 1
         idxE = len(listPhi)*Nr
+        idxSE = len(listPhi)*Nr + len(listPhi)
         # F x is defined as:
         # (12 - 10 f_n) y_n - f_{n-1} y_{n-1} - f_{n+1} y_{n+1} + (s[i+1] + 10.0*s[i] + s[i-1]) = 0
         # we do not write F itself as it is non-linear due to the demand in the last eq.
@@ -252,12 +253,15 @@ def getLinSyst(listPhi, r, pot, vd, vxc):
                     dr = r[ir+1] - r[ir]
                 F0[idxE + nOrb] += (listPhi[iOrb].psi[ir]*r[ir]**(-0.5))**2 * r[ir]**2 * dr
             F0[idxE + nOrb] += - 1.0
+            F0[idxSE] += 0 # this is the lagrange multiplier eq.: lambda = sum E^2
             # n = int delta(psi(x)) |psi'(x)| dx = sum_roots int delta (x - x_i) |psi'(x)| / |psi'(x_i)| dx
             for ir in range(0, len(r)):
     	        dr = 0
     	        if ir < len(r)-1:
                     dr = r[ir+1] - r[ir]
                 J[idxE + nOrb, nOrb*Nr + ir] += 2*listPhi[iOrb].psi[ir]*dr*r[ir]
+            J[idxSE, idxE + nOrb] += -2*E
+        J[idxSE, idxSE] += 1 # this is a lagrange multiplier: lambda = sum E^2 -> lambda - sum E^2 = 0
         nF0 = 0
         for i in range(0, len(F0)):
             nF0 += F0[i]**2
@@ -298,7 +302,7 @@ class phi:
         if changeInPlace:
             self.psi = self.rpsi[:]
 
-Z = 3
+Z = 5
 useDIIS = False
 
 dx = 1e-1/Z
@@ -311,8 +315,9 @@ listPhi = {}
 # propose to start with the Hydrogen-like (if Hydrogen had atomic number Z) energy level (0.5*Z^2/n^2)
 listPhi['1s1+'] = phi(1, 0, -Z**2/(1.0**2)*0.5)
 listPhi['1s1-'] = phi(1, 0, -Z**2/(1.0**2)*0.5)
-listPhi['2s1+'] = phi(2, 0, -Z**2/(2.0**2)*0.5)
-#listPhi['2s1-'] = phi(2, 0, -Z**2/(2.0**2)*0.5)
+listPhi['2s1+'] = phi(2, 0, -Z**2/(1.0**2)*0.5)
+listPhi['2s1-'] = phi(2, 0, -Z**2/(1.0**2)*0.5)
+listPhi['3s1+'] = phi(3, 0, -Z**2/(1.0**2)*0.5)
 
 phiToInt = {}
 intToPhi = {}
@@ -380,7 +385,7 @@ for iSCF in range(0, Nscf):
         print "======> On Newton iteration %d (potential fixed here: only trying to solve linear system)" % iN
 
         [J, F0, nF0, Nr, N, idxE] = getLinSyst(listPhi, r, pot, vd, vxc)
-        gamma = 0.1
+        gamma = 0.05
         for item in listPhi:
             if np.fabs(listPhi[item].E)*eV < 10:
                 gamma = 0.01
@@ -389,7 +394,7 @@ for iSCF in range(0, Nscf):
         finishNow = False
         if nF0 < minF0Sum:
             minF0Sum = nF0
-            if iN > 10:
+            if iN > 40:
                 finishNow = True
         #else:
         #    print "Getting out of loop as it went crazy!"
@@ -450,7 +455,7 @@ for iSCF in range(0, Nscf):
                     no[iOrb] += 1
 
         for iOrb in listPhi:
-            print "Old energy: ", listPhi[iOrb].E*eV, ", nodes = ", no_old[iOrb], " Emax ", listPhi[iOrb].Emax*eV, " Emin ", listPhi[iOrb].Emin*eV
+            print "Old energy: ", listPhi[iOrb].E*eV, ", nodes = ", no_old[iOrb] #, " Emax ", listPhi[iOrb].Emax*eV, " Emin ", listPhi[iOrb].Emin*eV
 
         for iOrb in listPhi:
             nOrb = phiToInt[iOrb]
@@ -477,12 +482,11 @@ for iSCF in range(0, Nscf):
                 if np.fabs(dE) > 0.1:
                     dE = 0.1*dE/np.fabs(dE)
                 listPhi[iOrb].E += dE
-
                 if dE > 0 and listPhi[iOrb].E > listPhi[iOrb].Emax:
                     listPhi[iOrb].E = listPhi[iOrb].Emax
                 elif dE < 0 and listPhi[iOrb].E < listPhi[iOrb].Emin:
                     listPhi[iOrb].E = listPhi[iOrb].Emin
-            print "New energy: ", listPhi[iOrb].E*eV, ", nodes = ", no[iOrb], " Emax ", listPhi[iOrb].Emax*eV, " Emin ", listPhi[iOrb].Emin*eV
+            print "New energy: ", listPhi[iOrb].E*eV, ", nodes = ", no[iOrb] #, " Emax ", listPhi[iOrb].Emax*eV, " Emin ", listPhi[iOrb].Emin*eV
 
         if useDIIS:
             newDx = np.zeros(N, dtype = np.float64)
@@ -503,7 +507,7 @@ for iSCF in range(0, Nscf):
         plt.clf()
         leg = []
         exact_p = 2*np.exp(-r)   # solution for R(r) in Hydrogen, n = 1
-        col = ['r-', 'g-', 'b-', 'r-.', 'g-.', 'b-.']
+        col = ['r-', 'g-', 'b-', 'r-.', 'g-.', 'b-.', 'r--', 'g--', 'b--']
         c = 0
         for iOrb in listPhi.keys():
             plt.plot(r[0:idx], listPhi[iOrb].rpsi[0:idx], col[c], label='$R_{%s}$'%iOrb)
@@ -513,7 +517,7 @@ for iSCF in range(0, Nscf):
         leg.append('Exact H (1s)')
     
         plt.legend(leg, frameon=False)
-        plt.xlabel('$r$')
+        plt.xlabel('$r$ [a0]')
         plt.ylabel('$|R(r)|$')
         [E0, sumEV, J, K] = calculateE0(r, listPhi, vd, vxc)
         plt.title('Z=%d, SCF iter=%d, E_{0}=%4f eV'%(Z, iSCF, E0*eV))
@@ -524,6 +528,9 @@ for iSCF in range(0, Nscf):
             leg = []
             plt.clf()
             c = 0
+            plt.plot(r[0:idx], pot[0:idx], col[c], label='Vnuc')
+            leg.append('Vnuc')
+            c += 1
             plt.plot(r[0:idx], vd[0:idx], col[c], label='Vd')
             leg.append('Vd')
             c += 1
@@ -546,7 +553,7 @@ for iSCF in range(0, Nscf):
         if minF0Sum < 1e-4*float(len(listPhi)) and finishNow:
             break
 
-    if np.fabs(1 - E0_old/E0) < 1e-4 and iSCF > 5:
+    if np.fabs(1 - E0_old/E0) < 1e-3 and iSCF > 5:
         print "===> Ground state energy changed by less than 1e-6 (by ", 100.0*np.fabs(1 - E0_old/E0),"%). E0 = ", E0*eV, "eV"
         break
     else:
