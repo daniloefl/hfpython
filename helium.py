@@ -14,7 +14,7 @@ Z = 2  # stop here for He
 
 # set this to true to show individual messages when scanning the energy
 # can be annoying ...
-debug = False
+debug = True 
 
 # conversion from Hartree to eV
 eV = 27.2113966413442 # 1 Hartree = 2 Rydberg, Bohr radius a_0 = 1, electron mass = 1, h/4pi = 1
@@ -24,8 +24,8 @@ dx = 1e-3
 
 # precision required when scanning energies
 # change in energies in separate steps must be < eps for convergence
-eps = 1e-10
-#eps = 1e-3
+#eps = 1e-10
+eps = 1e-3
 
 # minimum value of r in the grid is rmin = exp(xmin)/Z
 xmin = np.log(1e-4)
