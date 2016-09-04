@@ -1,6 +1,9 @@
 # hfpython
 Hartree-Fock solver in Python with optimisations to improve convergence
 
+  * numerov.py
+    Has an example on how to solve a second order diff. eq. using the Numerov method.
+
   * well.py
     Calculates the energy levels and wave functions for a finite potential well.
     It works similarly to harmonic.py and hydrogen.py, but the initial conditions assumed for the inward and outward integration
@@ -58,21 +61,18 @@ Hartree-Fock solver in Python with optimisations to improve convergence
     is calculated).
     See hf.py for something valid until Be.
 
-  * hf.py
-    Same as helium.py, but this time it calculates the exchange potential correctly, instead of assuming it cancels half the Coulomb
-    potential as in helium.py.
-    One can add more Orbital() classes and change the Z value to extend it to different atoms.
-    It also plots different wave functions for different orbitals in different stages of the Hartree-Fock procedure.
-    One down side is that it ignores the angular part of the wave function for p,d and f orbitals. Therefore, the solution is only
-    expected to work (within the uncorrelated electron approximation in Hartree-Fock and the numerical precision, as well as the
-    approximation that the HF eigenfunctions all have the angular dependence as in Hydrogen) up until Be. The Coulomb and
-    exchange potentials would be incorrectly calculated for p, d and f orbitals.
-    The exchange potential is added as an independent term in the HF equations.
+  * hf_newton.py
+    It includes the exchange and Coulomb potentials, similarly to helium.py, but for a general multi-electron system with a central nucleus potential.
+    As there are now terms in each HF eq. involving terms from the other equations, one must solve a linear coupled system for the difference eq.
+    Solving this more easily done, including an equation that imposes the (non-linear) normalisation of the wave functions and trying to minimise it
+    with the Newton-Raphson method. That is, the Jacobian of the non-linear system is calculated and one walks in the opposite direction to the jacobian.
+    Tests on the number of nodes are done periodically (but cannot be done for each solution or it can spoil the convergence of the Newton-Raphson method.
+    Faster convergence could be achieved with DIIS, but this is not yet working.
 
 
 This would be much faster in C, but it is easier to debug it in Python. It should also be easy to play with different potentials.
 One could, for example, change hydrogen_auto.py to solve the harmonic oscillator, or to solve the equations in a 1D lattice (but in this
-case it is probably better not to use a logarithmid Grid and that requires changing the Schr. form used).
+case it is probably better not to use a logarithmic Grid and that requires changing the Schr. form used).
 One could also add the angular dependence in the results (they are assumed to be separable and as in Hydrogen, so there
 is no calculation for them, but perhaps it would be nice to include them in the visualisation, by taking the Hydrogen results from tables).
 

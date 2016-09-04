@@ -146,6 +146,7 @@ def solve(r, dx, pot, n, l, E, Z):
     # new solution has a discontinuity at icl again
     # dF/dE is defined as the difference over dE of the change in F
     Fp = F(icl, fp, y_ep_ren)
+    print "F, Fp, dF ", Ficl, Fp, Fp - Ficl
     if Fp != Ficl:
         bestdE = -Ficl*dE/(Fp - Ficl)
     else:
@@ -176,7 +177,7 @@ def nodes(n, l):
 n = 1
 l = 0
 Z = 1
-E = -5
+E = -0.5
 Emax = -1e-3
 Emin = -20.0
 dx = 1e-3

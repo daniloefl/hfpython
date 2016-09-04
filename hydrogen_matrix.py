@@ -2,6 +2,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from scipy.sparse import lil_matrix
+from scipy.sparse.linalg import spsolve
+from numpy.linalg import solve, norm
+
 eV = 27.2113966413442 # Hartrees
 
 # a[i] = 2*m*r[i]**2*(E - pot[i]) - (l+0.5)**2
@@ -16,7 +20,7 @@ eV = 27.2113966413442 # Hartrees
 # boundary conditions at r = 0:
 # y[0] = ((Z*r[0])**(l+0.5)) -> F_00 = 
 def fock(r, N, E, l, Z = 1, dx = 1e-2):
-  F = np.zeros((N*len(r), N*len(r)))
+  F = lil_matrix((N*len(r), N*len(r)))
   icl = np.zeros(N, dtype=np.int)
   m = 1
   for yi in range(0, N):
@@ -31,31 +35,36 @@ def fock(r, N, E, l, Z = 1, dx = 1e-2):
         for j in range(0, len(r)):
           if yi == yj: # same wave function (include 1)
 	    if i == j:
-	      F[yi*len(r) + i, yj*len(r) + j] += -(12 - fi*10)
+	      F[yi*len(r) + i, yj*len(r) + j] = -(12 - fi*10)
 	    elif i == j-1 or i == j+1: # to multiply previous or next point
-	      F[yi*len(r) + i, yj*len(r) + j] += fi
+	      F[yi*len(r) + i, yj*len(r) + j] = fi
 	  else: # exchange terms come here
-	    F[yi*len(r) + i, yj*len(r) + j] += 0
+	    F[yi*len(r) + i, yj*len(r) + j] = 0
   return [F, icl]
 
-def indepOutward(r, N, E, l, Z, dx):
-  F = np.zeros((N*len(r), 1))
+def indepOutward(r, N, E, l, Z, dx, prev):
+  F = lil_matrix((N*len(r), 1))
   m = 1
   for yi in range(0, N):
+    if prev[yi][0] == 0:
+      prev[yi][0] = ((Z*r[0])**(l[yi]+0.5))
     for i in range(0, len(r)):
       if i == 0:
         fi = 1 + dx**2/12.0*(2*m*r[i]**2*(E[yi] - (-Z/r[i])) - (l[yi]+0.5)**2)
-        F[yi*len(r) + i] += -fi*((Z*r[0])**(l[yi]+0.5))
+        F[yi*len(r) + i] = -fi*prev[yi][0]
+      if i == len(r)-1:
+        fi = 1 + dx**2/12.0*(2*m*r[i]**2*(E[yi] - (-Z/r[i])) - (l[yi]+0.5)**2)
+        F[yi*len(r) + i] = -fi*np.exp(-np.sqrt(-2*m*E[yi])*r[len(r)-1])
   return F
 
 def indepInward(r, N, E, l, Z, dx):
-  F = np.zeros((N*len(r), 1))
+  F = lil_matrix((N*len(r), 1))
   m = 1
   for yi in range(0, N):
     for i in range(0, len(r)):
       if i == len(r)-1:
         fi = 1 + dx**2/12.0*(2*m*r[i]**2*(E[yi] - (-Z/r[i])) - (l[yi]+0.5)**2)
-        F[yi*len(r) + i] += -fi*np.exp(-np.sqrt(-2*m*E[yi])*r[len(r)-1])
+        F[yi*len(r) + i] = -fi*np.exp(-np.sqrt(-2*m*E[yi])*r[len(r)-1])
   return F
 
 def init(dx, N, xmin):
@@ -93,25 +102,24 @@ def toPsi(x, y):
 def nodes(n, l):
     return n - l - 1
 
-def matchInOut(yp, y, icl):
+def matchInOut(y, yp, icl):
     # renormalise
     y_ren = np.zeros(len(y))
     if icl >= 0:
         rat = y[icl]/yp[icl]
-	for i in range(0, icl):
+	for i in range(0, icl+1):
 	    y_ren[i] = y[i]
-	for i in range(icl, len(y)):
+	for i in range(icl+1, len(y)):
 	    y_ren[i] = rat*yp[i]
     return y_ren
 
-def solve(r, N, E, l, Z, dx):
+def solve(r, N, E, l, Z, dx, prev):
     [Fo, icl] = fock(r, N, E, l, Z, dx)
-    B_out = indepOutward(r, N, E, l, Z, dx)
-    Finv = np.linalg.inv(Fo)
-    xi_out = np.matmul(Finv, B_out)
+    B_out = indepOutward(r, N, E, l, Z, dx, prev)
+    xi_out = spsolve(Fo.tocsr(), B_out.tocsr())
 
     B_in = indepInward(r, N, E, l, Z, dx)
-    xi_in = np.matmul(Finv, B_in)
+    xi_in = spsolve(Fo.tocsr(), B_in.tocsr())
 
     nodes = np.zeros(N)
     xi_in2 = []
@@ -144,16 +152,15 @@ def solve(r, N, E, l, Z, dx):
     # dE = E_new - E_current = - F(E_current)/(F'(E_current))
     # F(E_current) = (12 - 10 f_icl) y_icl - f_{icl-1} y_{icl-1} - f_{icl+1} y_{icl+1}
     Ficl = np.zeros(N)
-    dE = np.ones(N)*(-1e-1)
+    dE = np.ones(N)*(-0.1)
     bestdE = np.zeros(N)
 
     [Fo_shift, icl_shift] = fock(r, N, E+dE, l, Z, dx)
-    B_out_shift = indepOutward(r, N, E+dE, l, Z, dx)
-    Finv_shift = np.linalg.inv(Fo_shift)
-    xi_out_shift = np.matmul(Finv_shift, B_out_shift)
+    B_out_shift = indepOutward(r, N, E+dE, l, Z, dx, prev)
+    xi_out_shift = spsolve(Fo_shift.tocsr(), B_out_shift.tocsr())
 
     B_in_shift = indepInward(r, N, E+dE, l, Z, dx)
-    xi_in_shift = np.matmul(Finv_shift, B_in_shift)
+    xi_in_shift = spsolve(Fo_shift.tocsr(), B_in_shift.tocsr())
 
     xi_in2_shift = []
     xi_out2_shift = []
@@ -169,31 +176,38 @@ def solve(r, N, E, l, Z, dx):
       # recalculate the solution with a slihtly varied E
       # new solution has a discontinuity at icl again
       # dF/dE is defined as the difference over dE of the change in F
-      Ficl_shift = F(icl[j], E[j]+dE[j], r, l[0], Z, dx, xi_ren_shift[j]) # get F at icl
-      print Ficl_shift - Ficl
-      if Ficl_shift != Ficl:
+      Ficl_shift = F(icl[j], E[j]+dE[j], r, l[j], Z, dx, xi_ren_shift[j]) # get F at icl
+      print "F and Fshift, diff:", Ficl, Ficl_shift, Ficl - Ficl_shift
+      print "icl:", icl
+      if np.fabs(Ficl_shift - Ficl) > 1e-9:
           bestdE[j] = -Ficl*dE[j]/(Ficl_shift - Ficl)
       else:
-        bestdE[j] = dE[j]
+          bestdE[j] = 0
+      print "dE:", bestdE
+        
       if icl < 0:
-        bestdE[j] = 10 # arbitrary, but must be positive to make energy less negative
+        bestdE[j] = 0.5 # arbitrary, but must be positive to make energy less negative
     return [xi_ren, nodes, bestdE]
 
 Z = 1
 N = 1 # number of orbitals
 
 dx = 1e-2
-r = init(dx, 1300, np.log(1e-4))
-E = np.ones(N)*(-0.5)
+r = init(dx, 1100, np.log(1e-4))
+E = np.ones(N)*(-0.8)
 l = np.zeros(N)
 n = np.ones(N)
+xi = []
+for i in range(0, N):
+  xi.append(np.zeros(len(r)))
 
 Emin = np.ones(N)*(-20)
 Emax = np.zeros(N)
 
 for i in range(0,100):
-  [xi, nodes_total, bestdE] = solve(r, N, E, l, Z, dx)
-  print bestdE, nodes_total
+  prev = xi
+  [xi, nodes_total, bestdE] = solve(r, N, E, l, Z, dx, prev)
+  print "Current energy = %f, next deltaE = %f and current number of nodes = %d." % (E[0], bestdE[0], nodes_total[0])
   dE = np.zeros(N)
   for j in range(0, N): #for each orbital
     if nodes_total[j] > nodes(n[j], l[j]):
@@ -203,14 +217,14 @@ for i in range(0,100):
       Emin[j] = E[j]+1e-15
       dE[j] = (Emax[j] + Emin[j])*0.5 - E[j]
     else:
-      dE[j] = 1e-1*bestdE[j]
+      dE[j] = bestdE[j]
       if np.fabs(dE[j]) > 0.5:
         dE[j] = 0.5*dE[j]/np.fabs(dE[j])
 
   print E, dE
   exact_p = 2*np.exp(-r) # exact R(r) solution for n = 1
-  idx = np.where(r > 3)
-  idx = idx[0][0]
+  idx = len(r) -1 #np.where(r > 3)
+  #idx = idx[0][0]
   idxm = 0
   plt.clf()
   col = ['r-', 'r-.', 'r:', 'g--', 'g-.', 'g:']
