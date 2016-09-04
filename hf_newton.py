@@ -659,10 +659,10 @@ for iSCF in range(0, Nscf):
         if minF0Sum < 1e-4*float(len(listPhi)) and finishNow:
             break
 
-    if np.fabs(1 - E0_old/E0) < 1e-3 and iSCF > 5:
-        print bcolors.WARNING + "(SCF it. %d) Ground state energy changed by less than 1e-3 (by %5f \%). E0 = %5f eV." % (iSCF, 100.0*np.fabs(1 - E0_old/E0), E0*eV) + '' + bcolors.ENDC
+    if np.fabs(1 - E0_old/E0) < 1e-4 and iSCF > 5:
+        print bcolors.WARNING + "(SCF it. %d) Ground state energy changed by less than 1e-4 (by %5f). E0 = %5f eV." % (iSCF, np.fabs(1 - E0_old/E0), E0*eV) + '' + bcolors.ENDC
         break
     else:
-        print bcolors.WARNING + "(SCF it. %d ends) E0 = %5f eV, delta E0 = %5f eV " % (iSCF, E0*eV, (E0 - E0_old)*eV) +'' + bcolors.ENDC
+        print bcolors.WARNING + "(SCF it. %d ends) E0 = %5f eV, dE0/E0 = %5f eV " % (iSCF, E0*eV, (E0 - E0_old)/E0) +'' + bcolors.ENDC
     E0_old = E0
 
