@@ -5,6 +5,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import collections
 
+class bcolors:
+    HEADER = '\033[4m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[91m'
+    ENDC = '\033[0m'
+
 eV = 27.2113966413442 # Hartrees
 
 def V(r, Z):
@@ -277,12 +284,14 @@ class phi:
     rpsi = None
     Emax = 0.0
     Emin = -99.0
+    wait = 2
     def __init__(self, _n, _l, _E):
         self.n = _n
         self.l = _l
         self.E = _E
         self.Emax = 0.0
         self.Emin = -99.0
+        self.wait = 2
 
     def toPsi(self, r, changeInPlace = False):
         n = 0
@@ -302,7 +311,50 @@ class phi:
         if changeInPlace:
             self.psi = self.rpsi[:]
 
-Z = 5
+def savePlotInFile(fname, r, pot, legend, ylabel = '', yrange = [-5,5]):
+    f = open(fname, 'w')
+    f.write("# %s\n" % legend)
+    f.write("set style line 1  lc rgb '#0060ad' lt 1 lw 2 pt 5   # blue\n")
+    f.write("set style line 2  lc rgb '#dd181f' lt 1 lw 2 pt 7   # red\n")
+    f.write("set style line 3  lc rgb '#00ff00' lt 1 lw 2 pt 9   # green\n")
+    f.write("set style line 4  lc rgb '#ffffff' lt 1 lw 2 pt 5   # black\n")
+    f.write("set style line 5  lc rgb 'orange'  lt 2 lw 2 pt 5   # orange\n")
+    f.write("set style line 6  lc rgb 'skyblue' lt 2 lw 2 pt 5   # skyblue\n")
+    f.write("set style line 7  lc rgb 'cyan'    lt 2 lw 2 pt 5   # cyan\n")
+    f.write("set style line 8  lc rgb '#0060ad' lt 3 lw 2 pt 5   # blue\n")
+    f.write("set style line 9  lc rgb '#dd181f' lt 3 lw 2 pt 7   # red\n")
+    f.write("set style line 10 lc rgb '#00ff00' lt 3 lw 2 pt 9   # green\n")
+    f.write("set terminal wxt size 800,600 enhanced font 'Verdana,12' persist\n")
+    f.write("set grid\n")
+    f.write("set xlabel '%s'\n" % ('r [a0]'))
+    f.write("set ylabel '%s'\n" % (ylabel))
+    f.write("set xrange [0:5]\n")
+    f.write("set yrange [%f:%f]\n" %(yrange[0], yrange[1]))
+    s = ""
+    for i in range(1, len(pot)+1):
+        pref = ""
+        if i == 1:
+            pref = "plot"
+        nl = ", \\"
+        if i == len(pot):
+            nl = ""
+        color = i
+        s += '%s "-" using 1:2 title "%s" with lines ls %d %s\n' % (pref, legend[i-1], color, nl)
+    f.write(s)
+    for j in range(0, len(pot)):
+        s = "# '%s' " % "r[a0]"
+        s += " '%s' " % legend[j]
+        s += "\n"
+        f.write(s)
+        for i in range(0, len(r)):
+            s = "%10f " % r[i]
+            s += " %10f " % pot[j][i]
+            s += "\n"
+            f.write(s)
+        f.write("end\n")
+    f.close()
+
+Z = 3
 useDIIS = False
 
 dx = 1e-1/Z
@@ -315,9 +367,11 @@ listPhi = {}
 # propose to start with the Hydrogen-like (if Hydrogen had atomic number Z) energy level (0.5*Z^2/n^2)
 listPhi['1s1+'] = phi(1, 0, -Z**2/(1.0**2)*0.5)
 listPhi['1s1-'] = phi(1, 0, -Z**2/(1.0**2)*0.5)
-listPhi['2s1+'] = phi(2, 0, -Z**2/(1.0**2)*0.5)
-listPhi['2s1-'] = phi(2, 0, -Z**2/(1.0**2)*0.5)
-listPhi['3s1+'] = phi(3, 0, -Z**2/(1.0**2)*0.5)
+listPhi['2s1+'] = phi(2, 0, -Z**2/(2.0**2)*0.5)
+#listPhi['2s1-'] = phi(2, 0, -Z**2/(2.0**2)*0.5)
+#listPhi['2p1+'] = phi(2, 1, -Z**2/(2.0**2)*0.5)
+
+Nwait = 4*len(listPhi)
 
 phiToInt = {}
 intToPhi = {}
@@ -345,7 +399,10 @@ gamma_v = 0.9
 
 E0_old = 0
 for iSCF in range(0, Nscf):
-    print "===> On SCF iteration %d" % iSCF
+    print bcolors.HEADER + "On HF SCF iteration %d" % iSCF + bcolors.ENDC
+
+    for iOrb in sorted(listPhi.keys()):
+        listPhi[iOrb].wait = Nwait
 
     if iSCF == 0:
         vd = np.zeros(len(r), dtype = np.float64)
@@ -382,7 +439,7 @@ for iSCF in range(0, Nscf):
 
     listDx = collections.deque(maxlen = 10)
     for iN in range(0, 2000):
-        print "======> On Newton iteration %d (potential fixed here: only trying to solve linear system)" % iN
+        print bcolors.OKBLUE + "(SCF it. %d) On Newton-Raphson minimum search iteration %d (SCF potential fixed here)" % (iSCF, iN) + bcolors.ENDC
 
         [J, F0, nF0, Nr, N, idxE] = getLinSyst(listPhi, r, pot, vd, vxc)
         gamma = 0.05
@@ -390,7 +447,7 @@ for iSCF in range(0, Nscf):
             if np.fabs(listPhi[item].E)*eV < 10:
                 gamma = 0.01
 
-        print "F0: ", nF0, "minimum so far: ", minF0Sum
+        print bcolors.WARNING + "(SCF it. %d, NR it. %d) Current minimisation function value \sum F_i^2 = %5f. Best minimum found in NR it. min \sum F_i^2 = %5f" % (iSCF, iN, nF0, minF0Sum) + bcolors.ENDC
         finishNow = False
         if nF0 < minF0Sum:
             minF0Sum = nF0
@@ -451,11 +508,11 @@ for iSCF in range(0, Nscf):
             no[iOrb] = 0
             for i in range(1, int(len(r))):
                 if listPhi[iOrb].rpsi[i]*listPhi[iOrb].rpsi[i-1] < 0 and r[i] > 0.1:
-                    print "Zero at ", r[i]
+                    print "New (%s): zero crossing at %5f" %(iOrb, r[i])
                     no[iOrb] += 1
 
         for iOrb in listPhi:
-            print "Old energy: ", listPhi[iOrb].E*eV, ", nodes = ", no_old[iOrb] #, " Emax ", listPhi[iOrb].Emax*eV, " Emin ", listPhi[iOrb].Emin*eV
+            print "Old %s: E = %5f, nodes = %d, Emax = %5f, Emin = %5f, wait it. = %d" % (iOrb, listPhi[iOrb].E*eV, no_old[iOrb], listPhi[iOrb].Emax*eV, listPhi[iOrb].Emin*eV, listPhi[iOrb].wait)
 
         for iOrb in listPhi:
             nOrb = phiToInt[iOrb]
@@ -470,14 +527,38 @@ for iSCF in range(0, Nscf):
                 #dE = -gamma*listPhi[iOrb].E/(-Z**2*0.5/(n**2))*dX[idxE + nOrb]
                 dE = -gamma*dX[idxE + nOrb]
 
-            if no[iOrb] > nodes(listPhi[iOrb].n, listPhi[iOrb].l):
+            if no[iOrb] > nodes(listPhi[iOrb].n, listPhi[iOrb].l) and listPhi[iOrb].wait <= 0:
                 listPhi[iOrb].Emax = listPhi[iOrb].E
+                if nodes(listPhi[iOrb].n, listPhi[iOrb].l) != 0 and no[iOrb] != 0:
+                    dE = -np.fabs(Z**2*0.5/(nodes(listPhi[iOrb].n, listPhi[iOrb].l)**2) - Z**2*0.5/(no[iOrb]**2))*0.1
+                elif nodes(listPhi[iOrb].n, listPhi[iOrb].l) != 0:
+                    dE = -np.fabs(Z**2*0.5/(nodes(listPhi[iOrb].n, listPhi[iOrb].l)**2))*0.1
+                elif no[iOrb] != 0:
+                    dE = -np.fabs(Z**2*0.5/(no[iOrb]**2))*0.1
+                else:
+                    dE = -0.001
                 dE = (listPhi[iOrb].Emax + listPhi[iOrb].Emin)*0.5 - listPhi[iOrb].E
                 listPhi[iOrb].E += dE
-            elif no[iOrb] < nodes(listPhi[iOrb].n, listPhi[iOrb].l):
+                for ir in range(0, len(r)):
+                    listPhi[iOrb].psi[ir] = 1
+                    listPhi[iOrb].rpsi[ir] = 0
+                listPhi[iOrb].wait = Nwait
+            elif no[iOrb] < nodes(listPhi[iOrb].n, listPhi[iOrb].l) and listPhi[iOrb].wait <= 0:
                 listPhi[iOrb].Emin = listPhi[iOrb].E
+                if nodes(listPhi[iOrb].n, listPhi[iOrb].l) != 0 and no[iOrb] != 0:
+                    dE = np.fabs(Z**2*0.5/(nodes(listPhi[iOrb].n, listPhi[iOrb].l)**2) - Z**2*0.5/(no[iOrb]**2))*0.1
+                elif nodes(listPhi[iOrb].n, listPhi[iOrb].l) != 0:
+                    dE = np.fabs(Z**2*0.5/(nodes(listPhi[iOrb].n, listPhi[iOrb].l)**2))*0.1
+                elif no[iOrb] != 0:
+                    dE = np.fabs(Z**2*0.5/(no[iOrb]**2))*0.1
+                else:
+                    dE = 0.001
                 dE = (listPhi[iOrb].Emax + listPhi[iOrb].Emin)*0.5 - listPhi[iOrb].E
                 listPhi[iOrb].E += dE
+                for ir in range(0, len(r)):
+                    listPhi[iOrb].psi[ir] = 1
+                    listPhi[iOrb].rpsi[ir] = 0
+                listPhi[iOrb].wait = Nwait
             else:
                 if np.fabs(dE) > 0.1:
                     dE = 0.1*dE/np.fabs(dE)
@@ -486,7 +567,11 @@ for iSCF in range(0, Nscf):
                     listPhi[iOrb].E = listPhi[iOrb].Emax
                 elif dE < 0 and listPhi[iOrb].E < listPhi[iOrb].Emin:
                     listPhi[iOrb].E = listPhi[iOrb].Emin
-            print "New energy: ", listPhi[iOrb].E*eV, ", nodes = ", no[iOrb] #, " Emax ", listPhi[iOrb].Emax*eV, " Emin ", listPhi[iOrb].Emin*eV
+
+            listPhi[iOrb].wait -= 1
+            if listPhi[iOrb].wait < 0:
+                listPhi[iOrb].wait = 0
+            print "New %s: E = %5f, nodes = %d, Emax = %5f, Emin = %5f, wait it. = %d" % (iOrb, listPhi[iOrb].E*eV, no[iOrb], listPhi[iOrb].Emax*eV, listPhi[iOrb].Emin*eV, listPhi[iOrb].wait)
 
         if useDIIS:
             newDx = np.zeros(N, dtype = np.float64)
@@ -504,13 +589,20 @@ for iSCF in range(0, Nscf):
             idx = idx[0][0]
         else:
             idx = len(r)-1
+        idxlow = np.where(r > 1.0)
+        if len(idxlow[0]) != 0:
+            idxlow = idxlow[0][0]
+        else:
+            idxlow = 0
         plt.clf()
+        plist = []
         leg = []
         exact_p = 2*np.exp(-r)   # solution for R(r) in Hydrogen, n = 1
         col = ['r-', 'g-', 'b-', 'r-.', 'g-.', 'b-.', 'r--', 'g--', 'b--']
         c = 0
         for iOrb in listPhi.keys():
             plt.plot(r[0:idx], listPhi[iOrb].rpsi[0:idx], col[c], label='$R_{%s}$'%iOrb)
+            plist.append(listPhi[iOrb].rpsi)
             c += 1
             leg.append('%s (%3f eV)' % (iOrb, listPhi[iOrb].E*eV))
         plt.plot(r[0:idx], exact_p[0:idx], 'g--', label='$R_{exact}$')
@@ -523,40 +615,54 @@ for iSCF in range(0, Nscf):
         plt.title('Z=%d, SCF iter=%d, E_{0}=%4f eV'%(Z, iSCF, E0*eV))
         plt.draw()
         plt.savefig('pseudo_potentials.pdf', bbox_inches='tight')
+        ymin = np.amin(plist)
+        ymax = np.amax(plist)
+        savePlotInFile('pseudo_potentials.plt', r, plist, leg, 'R(r)', [ymin, ymax])
         #plt.show()
         for iOrb in listPhi.keys():
             leg = []
             plt.clf()
             c = 0
+            ymin = pot[idxlow]
+            l = [vd[0]]
+            for item in vxc[iOrb]:
+                l.append(vxc[iOrb][item][0])
+            ymax = 1.3*np.amax(l)
+            vlist = []
             plt.plot(r[0:idx], pot[0:idx], col[c], label='Vnuc')
+            vlist.append(pot)
             leg.append('Vnuc')
             c += 1
             plt.plot(r[0:idx], vd[0:idx], col[c], label='Vd')
+            vlist.append(vd)
             leg.append('Vd')
             c += 1
             for item in vxc[iOrb]:
-                plt.plot(r[0:idx], vxc[iOrb][item][0:idx], col[c], label='Vd')
+                plt.plot(r[0:idx], vxc[iOrb][item][0:idx], col[c], label='Vxc wrt %s' % item)
+                vlist.append(vxc[iOrb][item])
                 leg.append('Vxc wrt %s' % item)
                 c += 1
             plt.legend(leg, frameon=False)
             plt.xlabel('$r$ [a0]')
             plt.ylabel('Potential')
             plt.title('Z=%d, SCF iter=%d, %s %f eV'%(Z, iSCF, iOrb, listPhi[iOrb].E*eV))
+            plt.ylim([ymin, ymax])
             plt.draw()
             plt.savefig('pot_%s.pdf' % iOrb, bbox_inches='tight')
+            savePlotInFile('pot_%s.plt' % (iOrb), r, vlist, leg, 'Potential', [ymin, ymax])
             n = listPhi[iOrb].n
             l = listPhi[iOrb].l
             #if no[iOrb] != nodes(n, l):
             #    import sys
             #    sys.exit(0)
-        print "=> Ground state calculation: E0 = %5f eV, \sum \epsilon = %5f eV, J = %5f eV, K = %5f eV" % (E0*eV, sumEV*eV, J*eV, K*eV)
+        print bcolors.WARNING + "(SCF it. %d, NR it. %d) Ground state calculation: E0 = %5f eV, \sum \epsilon = %5f eV, J = %5f eV, K = %5f eV" % (iSCF, iN, E0*eV, sumEV*eV, J*eV, K*eV) + bcolors.ENDC
         if minF0Sum < 1e-4*float(len(listPhi)) and finishNow:
             break
 
     if np.fabs(1 - E0_old/E0) < 1e-3 and iSCF > 5:
-        print "===> Ground state energy changed by less than 1e-6 (by ", 100.0*np.fabs(1 - E0_old/E0),"%). E0 = ", E0*eV, "eV"
+        print bcolors.WARNING + "(SCF it. %d) Ground state energy changed by less than 1e-3 (by %5f %). E0 = %5f eV." % (iSCF, 100.0*np.fabs(1 - E0_old/E0), E0*eV) + '' + bcolors.ENDC
         break
     else:
-        print "===> SCF iteration %d, E0 = %5f eV, delta E0 = %5f eV " % (iSCF, E0*eV, (E0 - E0_old)*eV)
+        print bcolors.WARNING + "(SCF it. %d ends) E0 = %5f eV, delta E0 = %5f eV " % (iSCF, E0*eV, (E0 - E0_old)*eV) +'' + bcolors.ENDC
     E0_old = E0
 
