@@ -107,19 +107,27 @@ def getPotentialXC(r, nu, nd):
             dr = r[z] - r[z-1]
         else:
             dr = r[z]
-        exc[z] = -3.0/4.0*(3.0/np.pi)**(1.0/3.0)*(nu[z] + nd[z])**(1.0/3.0)
-        excu[z] = -3.0/4.0*(3.0/np.pi)**(1.0/3.0)*nu[z]**(1.0/3.0)
-        excd[z] = -3.0/4.0*(3.0/np.pi)**(1.0/3.0)*nd[z]**(1.0/3.0)
+        #exc[z] = -3.0/4.0*(3.0/np.pi)**(1.0/3.0)*(nu[z] + nd[z])**(1.0/3.0)
+        excu[z] = -3.0/4.0*(3.0/np.pi)**(1.0/3.0)*(2*nu[z])**(1.0/3.0)
+        excd[z] = -3.0/4.0*(3.0/np.pi)**(1.0/3.0)*(2*nd[z])**(1.0/3.0)
+        exc[z] = 0.5*(excu[z] + excd[z])
         # this is E:
-        Vu[z] = excu[z] #+ nu[z]*(-3.0/4.0*(1.0/3.0)*(3.0/np.pi)**(1.0/3.0)*nu[z]**(-2.0/3.0))
-        Vd[z] = excd[z] #+ nd[z]*(-3.0/4.0*(1.0/3.0)*(3.0/np.pi)**(1.0/3.0)*nd[z]**(-2.0/3.0))
-        V[z] = exc[z] #+ (nu[z] + nd[z])*(-3.0/4.0*(1.0/3.0)*(3.0/np.pi)**(1.0/3.0)*(nu[z] + nd[z])**(-2.0/3.0))
+        #Vu[z] = excu[z]
+        #Vd[z] = excd[z]
+        ###V[z] = exc[z]
+        #if nu[z] != 0:
+        #    Vu[z] += nu[z]*(-3.0/4.0*(1.0/3.0)*(3.0/np.pi)**(1.0/3.0)*(nu[z])**(-2.0/3.0))
+        #if nd[z] != 0:
+        #    Vd[z] += nd[z]*(-3.0/4.0*(1.0/3.0)*(3.0/np.pi)**(1.0/3.0)*(nd[z])**(-2.0/3.0))
+        #if nu[z] + nd[z] != 0:
+        #    V[z] += (nu[z] + nd[z])*(-3.0/4.0*(1.0/3.0)*(3.0/np.pi)**(1.0/3.0)*(nu[z] + nd[z])**(-2.0/3.0))
+        #if nu[z] + nd[z] != 0:
+        #    V[z] += -(3.0/np.pi)**(1.0/3.0)*(nu[z] + nd[z])**(1.0/3.0)
         if nu[z] != 0:
-            Vu[z] += nu[z]*(-3.0/4.0*(1.0/3.0)*(3.0/np.pi)**(1.0/3.0)*nu[z]**(-2.0/3.0))
+            Vu[z] += -(3.0/np.pi)**(1.0/3.0)*(nd[z])**(1.0/3.0)
         if nd[z] != 0:
-            Vd[z] += nd[z]*(-3.0/4.0*(1.0/3.0)*(3.0/np.pi)**(1.0/3.0)*nd[z]**(-2.0/3.0))
-        if nu[z] + nd[z] != 0:
-            V[z] += (nu[z] + nd[z])*(-3.0/4.0*(1.0/3.0)*(3.0/np.pi)**(1.0/3.0)*(nu[z] + nd[z])**(-2.0/3.0))
+            Vd[z] += -(3.0/np.pi)**(1.0/3.0)*(nu[z])**(1.0/3.0)
+        V[z] += 0.5*(Vu[z] + Vd[z])
 
     return [Vu, Vd, V, excu, excd, exc]
 
@@ -146,23 +154,18 @@ def calculateE0(r, listPhi, nu, nd):
 
     [vxcu, vxcd, vxc, excu, excd, exc] = getPotentialXC(r, nu, nd)
     Qxc = 0
-    Exc = 0
     for z in range(0, len(r)):
         dr = 0
         if z >= 1:
             dr = r[z] - r[z-1]
         else:
             dr = r[z]
-        #Qxc += 4*np.pi*(vxcu[z]*nu[z] + vxcd[z]*nd[z])*r[z]**2*dr/(4*np.pi)
-        Qxc += 4*np.pi*(vxc[z]*(nu[z] + nd[z]))*r[z]**2*dr/(4*np.pi)
-        #Exc += 4*np.pi*(excu[z] + excd[z])*r[z]**2*dr/(4*np.pi)
-        Exc += 4*np.pi*(exc[z])*r[z]**2*dr/(4*np.pi)
+        Qxc -= 4*np.pi*(vxcu[z]*nd[z] + vxcd[z]*nu[z])*r[z]**2*dr/(4*np.pi)
 
     print "sum epsilon = %4f eV" % (E0*eV)
-    print "-0.5Qh      = %4f eV" % (-0.5*Qh*eV)
-    print "-Qxc        = %4f eV" % (-Qxc*eV)
-    print "Exc         = %4f eV" % (Exc*eV)
-    E0 += -0.5*Qh - Qxc + Exc
+    print "-0.5Eh      = %4f eV" % (-0.5*Qh*eV)
+    print "+0.5Exc     = %4f eV" % (0.5*Qxc*eV)
+    E0 += -0.5*(Qh - Qxc) # + Exc
     print "E0          = %4f eV" % (E0*eV)
     return E0
 
@@ -202,6 +205,7 @@ def getLinSyst(listPhi, r, pot, vd, vxcu, vxcd):
                 pot_full_effective += vxcu
             elif '-' in iOrb:
                 pot_full_effective += vxcd
+            #pot_full_effective += vxc
             potIndep = np.zeros(len(r), dtype = np.float64)
             #if iOrb in vxc[iOrb]:
             #    pot_full_effective -= vxc[iOrb][iOrb]
@@ -362,8 +366,7 @@ def savePlotInFile(fname, r, pot, legend, ylabel = '', yrange = [-5,5]):
         f.write("end\n")
     f.close()
 
-Z = 2
-Einit = -2.0
+Z = 3
 
 dx = 1e-1/Z
 r = init(dx, Z*150, np.log(1e-4))
@@ -371,6 +374,7 @@ r = init(dx, Z*150, np.log(1e-4))
 listPhi = {}
 listPhi['1s1+'] = phi(1, 0, -Z**2/(1.0**2)*0.5)
 listPhi['1s1-'] = phi(1, 0, -Z**2/(1.0**2)*0.5)
+listPhi['2s1+'] = phi(2, 0, -Z**2/(2.0**2)*0.5)
 
 Nwait = 4*len(listPhi)
 
@@ -442,7 +446,7 @@ for iSCF in range(0, Nscf):
         gamma = 0.05
         for item in listPhi:
             if np.fabs(listPhi[item].E)*eV < 10:
-                gamma = 0.01
+                gamma = 0.05
 
         print bcolors.WARNING + "(SCF it. %d, NR it. %d) Current minimisation function value \sum F_i^2 = %5f. Best minimum found in NR it. min \sum F_i^2 = %5f" % (iSCF, iN, nF0, minF0Sum) + bcolors.ENDC
         finishNow = False
