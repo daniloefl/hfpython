@@ -4,6 +4,9 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import collections
+import scipy
+import scipy.sparse
+import scipy.sparse.linalg
 
 class bcolors:
     HEADER = '\033[4m'
@@ -184,7 +187,8 @@ def getLinSyst(listPhi, r, pot, vd, vxc):
         m = 1
     
         F0 = np.zeros(N, dtype=np.float64)
-        J = np.zeros((N, N), dtype=np.float64)
+        #J = np.zeros((N, N), dtype=np.float64)
+        J = scipy.sparse.lil_matrix((N, N), dtype=np.float64)
         for iOrb in sorted(listPhi.keys()):
             nOrb = phiToInt[iOrb]
             l = listPhi[iOrb].l
@@ -355,7 +359,6 @@ def savePlotInFile(fname, r, pot, legend, ylabel = '', yrange = [-5,5]):
     f.close()
 
 Z = 3
-useDIIS = False
 
 dx = 1e-1/Z
 r = init(dx, Z*150, np.log(1e-4))
@@ -395,14 +398,15 @@ Nscf = 1000
 
 vd_last = np.zeros(len(r), dtype = np.float64)
 vxc_last = {}
-gamma_v = 0.9
+gamma_v = 0.2
 
+abortIt = False
 E0_old = 0
 for iSCF in range(0, Nscf):
     print bcolors.HEADER + "On HF SCF iteration %d" % iSCF + bcolors.ENDC
 
     for iOrb in sorted(listPhi.keys()):
-        listPhi[iOrb].wait = Nwait
+        listPhi[iOrb].wait = 0
 
     if iSCF == 0:
         vd = np.zeros(len(r), dtype = np.float64)
@@ -416,7 +420,8 @@ for iSCF in range(0, Nscf):
                 vxc[iOrb][jOrb] = np.zeros(len(r), dtype = np.float64)
                 vxc_last[iOrb][jOrb] = vxc[iOrb][jOrb]
     else:
-        vd = vd_last*gamma_v + getPotentialH(r, listPhi)*(1-gamma_v)
+        gamma_v_eff = gamma_v*np.exp(-iSCF/40.0)
+        vd = vd_last*(1-gamma_v_eff) + getPotentialH(r, listPhi)*(gamma_v_eff)
         vd_last = vd[:]
         vxc = {}
         vxc_new = {}
@@ -424,7 +429,7 @@ for iSCF in range(0, Nscf):
             vxc_new[iOrb] = getPotentialX(r, listPhi, iOrb)
             vxc[iOrb] = {}
             for jOrb in vxc_new[iOrb]:
-                vxc[iOrb][jOrb] = vxc_last[iOrb][jOrb]*gamma_v + vxc_new[iOrb][jOrb]*(1-gamma_v)
+                vxc[iOrb][jOrb] = vxc_last[iOrb][jOrb]*(1-gamma_v_eff) + vxc_new[iOrb][jOrb]*(gamma_v_eff)
                 vxc_last[iOrb][jOrb] = vxc[iOrb][jOrb]
     np.set_printoptions(threshold=np.inf)
 
@@ -434,67 +439,60 @@ for iSCF in range(0, Nscf):
     bestPhi = {}
     E0 = 0
     for iOrb in sorted(listPhi.keys()):
-        listPhi[iOrb].Emin = -Z**2*0.5
+        listPhi[iOrb].Emin = -Z**2*0.5/listPhi[iOrb].n**2
         listPhi[iOrb].Emax = 0
 
-    listDx = collections.deque(maxlen = 10)
+    listPhi_prev = {}
+    scale_gamma = 1.0
     for iN in range(0, 2000):
         print bcolors.OKBLUE + "(SCF it. %d) On Newton-Raphson minimum search iteration %d (SCF potential fixed here)" % (iSCF, iN) + bcolors.ENDC
 
         [J, F0, nF0, Nr, N, idxE] = getLinSyst(listPhi, r, pot, vd, vxc)
-        gamma = 0.05
-        for item in listPhi:
-            if np.fabs(listPhi[item].E)*eV < 10:
-                gamma = 0.01
 
-        print bcolors.WARNING + "(SCF it. %d, NR it. %d) Current minimisation function value \sum F_i^2 = %5f. Best minimum found in NR it. min \sum F_i^2 = %5f" % (iSCF, iN, nF0, minF0Sum) + bcolors.ENDC
+        print bcolors.WARNING + "(SCF it. %d, NR it. %d) Current minimisation function value \sum F_i^2 = %.10f. Best minimum found in NR it. min \sum F_i^2 = %.10f" % (iSCF, iN, nF0, minF0Sum) + bcolors.ENDC
         finishNow = False
         if nF0 < minF0Sum:
             minF0Sum = nF0
-            if iN > 40:
-                finishNow = True
-        #else:
-        #    print "Getting out of loop as it went crazy!"
-        #    break
+            finishNow = True
+            # save last state
+            for iOrb in listPhi:
+                listPhi_prev[iOrb] = listPhi[iOrb]
+        elif iSCF > 1: # new step does not improve things ...
+            w = 0
+            for iOrb in listPhi:
+                w += listPhi[iOrb].wait
+            if w == 0:
+                # this can happen when the direct and exchange potentials are not there as we are far off the solution
+                # but after the first optimisation, we should take measures to avoid it
+                # at that stage it happens often when we change the solution by too much and skip the minimum
+                # so, let's go back and try to reduce the step
+                # go back to the previous step and reduce gamma
+                for iOrb in listPhi:
+                    listPhi[iOrb] = listPhi_prev[iOrb]
+                [J, F0, nF0, Nr, N, idxE] = getLinSyst(listPhi, r, pot, vd, vxc)
+                print bcolors.WARNING + "(SCF it. %d, NR it. %d) New function is bigger than previous iteration. Going back and reducing the step to gamma = %.10f. Current minimisation function value \sum F_i^2 = %.10f. Best minimum found in NR it. min \sum F_i^2 = %.10f" % (iSCF, iN, gamma*scale_gamma, nF0, minF0Sum) + bcolors.ENDC
+                # as the function value grew, let's end this ...
+                abortIt = True
+                break
+
+
+        gamma = 0.2*scale_gamma
 
         no_old = {}
         for iOrb in listPhi:
             no_old[iOrb] = 0
             for i in range(1, int(len(r))):
-                if listPhi[iOrb].rpsi[i]*listPhi[iOrb].rpsi[i-1] < 0 and r[i] > 0.1:
+                if listPhi[iOrb].rpsi[i]*listPhi[iOrb].rpsi[i-1] < 0 and r[i] > 0.01:
                     no_old[iOrb] += 1
 
-        dX = np.linalg.solve(J, F0)
+        Jcsr = J.tocsr()
+        dX = scipy.sparse.linalg.spsolve(Jcsr, F0)
 
-        listDx.append(-gamma*dX)
-
-        # use DIIS
-        if useDIIS:
-            B = np.zeros((len(listDx)+1, len(listDx)+1), dtype = np.float64)
-            L = np.zeros(len(listDx)+1, dtype = np.float64)
-            for idx in range(0, len(listDx)):
-                for jdx in range(0, len(listDx)):
-                    B[idx, jdx] = np.dot(listDx[idx], listDx[jdx])
-            for idx in range(0, len(listDx)):
-                B[len(listDx), idx] = -1
-                B[idx, len(listDx)] = -1
-            L[len(listDx)] = -1.0
-            C = np.linalg.solve(B, L)
-            print C
-        
-            for iOrb in listPhi:
-                nOrb = phiToInt[iOrb]
-                n = listPhi[iOrb].n
-                for ic in range(0, len(listDx)):
-                    for ir in range(0, len(r)):
-                        listPhi[iOrb].psi[ir] += listDx[ic][nOrb*Nr + ir]*C[ic]
-        else:
-            for iOrb in listPhi:
-                nOrb = phiToInt[iOrb]
-                n = listPhi[iOrb].n
-                for ir in range(0, len(r)):
-                    #listPhi[iOrb].psi[ir] += -gamma*listPhi[iOrb].E/(-Z**2*0.5/(n**2))*dX[nOrb*Nr + ir]
-                    listPhi[iOrb].psi[ir] += -gamma*dX[nOrb*Nr + ir]
+        for iOrb in listPhi:
+            nOrb = phiToInt[iOrb]
+            n = listPhi[iOrb].n
+            for ir in range(0, len(r)):
+                listPhi[iOrb].psi[ir] += -gamma*dX[nOrb*Nr + ir]
 
         # multiply by 1/sqrt(r) to undo transformation that guarantees convergence at zero
         # and renormalise again (should already be guaranteed by last equations in J and F0, but
@@ -518,14 +516,7 @@ for iSCF in range(0, Nscf):
             nOrb = phiToInt[iOrb]
             n = listPhi[iOrb].n
             l = listPhi[iOrb].l
-            if useDIIS and iN > 2:
-                dE = 0
-                for ic in range(0, len(listDx)):
-                    dE += listDx[ic][idxE+nOrb]*C[ic]
-
-            else:
-                #dE = -gamma*listPhi[iOrb].E/(-Z**2*0.5/(n**2))*dX[idxE + nOrb]
-                dE = -gamma*dX[idxE + nOrb]
+            dE = - gamma*dX[idxE+nOrb]
 
             if no[iOrb] > nodes(listPhi[iOrb].n, listPhi[iOrb].l) and listPhi[iOrb].wait <= 0:
                 listPhi[iOrb].Emax = listPhi[iOrb].E
@@ -573,17 +564,11 @@ for iSCF in range(0, Nscf):
                 listPhi[iOrb].wait = 0
             print "New %s: E = %5f, nodes = %d, Emax = %5f, Emin = %5f, wait it. = %d" % (iOrb, listPhi[iOrb].E*eV, no[iOrb], listPhi[iOrb].Emax*eV, listPhi[iOrb].Emin*eV, listPhi[iOrb].wait)
 
-        if useDIIS:
-            newDx = np.zeros(N, dtype = np.float64)
-            for iOrb in listPhi:
-                nOrb = phiToInt[iOrb]
-                for ic in range(0, len(listDx)):
-                    for ir in range(0, len(r)):
-                        newDx[nOrb*Nr + ir] += listDx[ic][nOrb*Nr + ir]*C[ic]
-                    newDx[idxE + nOrb] += listDx[ic][idxE+nOrb]*C[ic]
-            listDx[len(listDx)-1] = newDx
-            print "last dx = ", listDx[len(listDx)-1]
-
+        idxhigh = np.where(r > 10.0)
+        if len(idxhigh[0]) != 0:
+            idxhigh = idxhigh[0][0]
+        else:
+            idxhigh = len(r)-1
         idx = np.where(r > 5)
         if len(idx[0]) != 0:
             idx = idx[0][0]
@@ -618,7 +603,30 @@ for iSCF in range(0, Nscf):
         ymin = np.amin(plist)
         ymax = np.amax(plist)
         savePlotInFile('pseudo_potentials.plt', r, plist, leg, 'R(r)', [ymin, ymax])
-        #plt.show()
+
+        # show potentials squared
+        plt.clf()
+        plist = []
+        leg = []
+        c = 0
+        for iOrb in listPhi.keys():
+            plt.plot(r[0:idxhigh], listPhi[iOrb].rpsi[0:idxhigh]**2*r[0:idxhigh]**2, col[c], label='$R_{%s}^2 r^2$'%iOrb)
+            plist.append(listPhi[iOrb].rpsi**2*r**2)
+            c += 1
+            leg.append('%s (%3f eV)' % (iOrb, listPhi[iOrb].E*eV))
+    
+        plt.legend(leg, frameon=False)
+        plt.xlabel('$r$ [a0]')
+        plt.ylabel('$|R(r)|^2 r^2$')
+        [E0, sumEV, J, K] = calculateE0(r, listPhi, vd, vxc)
+        plt.title('Z=%d, SCF iter=%d, E_{0}=%4f eV'%(Z, iSCF, E0*eV))
+        plt.draw()
+        plt.savefig('pseudo_potentials2.pdf', bbox_inches='tight')
+        ymin = np.amin(plist)
+        ymax = np.amax(plist)
+        savePlotInFile('pseudo_potentials2.plt', r, plist, leg, 'r^2 R(r)^2', [ymin, ymax])
+
+        # now save the potential shapes
         for iOrb in listPhi.keys():
             leg = []
             plt.clf()
@@ -656,13 +664,14 @@ for iSCF in range(0, Nscf):
             #    import sys
             #    sys.exit(0)
         print bcolors.WARNING + "(SCF it. %d, NR it. %d) Ground state calculation: E0 = %5f eV, \sum \epsilon = %5f eV, J = %5f eV, K = %5f eV" % (iSCF, iN, E0*eV, sumEV*eV, J*eV, K*eV) + bcolors.ENDC
-        if minF0Sum < 1e-4*float(len(listPhi)) and finishNow:
+        if minF0Sum < 1e-9*float(len(listPhi)) and finishNow:
+            print bcolors.WARNING + "(SCF it. %d, NR it. %d) Ending Newton-Raphson iterations due to very small target function: \sum F0^2 = %.10f." % (iSCF, iN, minF0Sum) + bcolors.ENDC
             break
 
-    if np.fabs(1 - E0_old/E0) < 1e-4 and iSCF > 5:
-        print bcolors.WARNING + "(SCF it. %d) Ground state energy changed by less than 1e-4 (by %5f). E0 = %5f eV." % (iSCF, np.fabs(1 - E0_old/E0), E0*eV) + '' + bcolors.ENDC
+    if (np.fabs(1 - E0_old/E0) < 1e-7*Z and iSCF > 5) or abortIt:
+        print bcolors.WARNING + "(SCF it. %d) Ground state energy changed by less than Z*1e-7 (by %8f). E0 = %8f eV." % (iSCF, np.fabs(1 - E0_old/E0), E0*eV) + '' + bcolors.ENDC
         break
     else:
-        print bcolors.WARNING + "(SCF it. %d ends) E0 = %5f eV, dE0/E0 = %5f eV " % (iSCF, E0*eV, (E0 - E0_old)/E0) +'' + bcolors.ENDC
+        print bcolors.WARNING + "(SCF it. %d ends) E0 = %8f eV, dE0/E0 = %8f" % (iSCF, E0*eV, (E0 - E0_old)/E0) +'' + bcolors.ENDC
     E0_old = E0
 
