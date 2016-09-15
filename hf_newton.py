@@ -213,8 +213,6 @@ def getLinSyst(listPhi, r, pot, vd, vxc):
                 s_coeff = (dx**2)/12.0*2*m*r[ir]**2
                 s = (dx**2)/12.0*2*m*r[ir]**2*potIndep[ir]
                 F0[nOrb*Nr+ir] += (12 - 10*f)*listPhi[iOrb].psi[ir] + 10.0*s
-                if ir == 0:
-                    F0[nOrb*Nr+ir] += -f*((Z*r[0])**(l+0.5))
                 J[nOrb*Nr+ir, nOrb*Nr+ir] += (12 - 10*f)
                 J[nOrb*Nr + ir, idxE + nOrb] += -10*(2*m*r[ir]**2)*(dx**2/12.0)*listPhi[iOrb].psi[ir]
                 for jOrb in sorted(listPhi.keys()):
@@ -358,7 +356,7 @@ def savePlotInFile(fname, r, pot, legend, ylabel = '', yrange = [-5,5]):
         f.write("end\n")
     f.close()
 
-Z = 3
+Z = 4
 
 dx = 1e-1/Z
 r = init(dx, Z*150, np.log(1e-4))
@@ -371,7 +369,7 @@ listPhi = {}
 listPhi['1s1+'] = phi(1, 0, -Z**2/(1.0**2)*0.5)
 listPhi['1s1-'] = phi(1, 0, -Z**2/(1.0**2)*0.5)
 listPhi['2s1+'] = phi(2, 0, -Z**2/(2.0**2)*0.5)
-#listPhi['2s1-'] = phi(2, 0, -Z**2/(2.0**2)*0.5)
+listPhi['2s1-'] = phi(2, 0, -Z**2/(2.0**2)*0.5)
 #listPhi['2p1+'] = phi(2, 1, -Z**2/(2.0**2)*0.5)
 
 Nwait = 4*len(listPhi)
@@ -398,7 +396,7 @@ Nscf = 1000
 
 vd_last = np.zeros(len(r), dtype = np.float64)
 vxc_last = {}
-gamma_v = 0.2
+gamma_v = 0.3
 
 abortIt = False
 E0_old = 0
@@ -420,7 +418,9 @@ for iSCF in range(0, Nscf):
                 vxc[iOrb][jOrb] = np.zeros(len(r), dtype = np.float64)
                 vxc_last[iOrb][jOrb] = vxc[iOrb][jOrb]
     else:
-        gamma_v_eff = gamma_v*np.exp(-iSCF/40.0)
+        gamma_v_eff = gamma_v # *np.exp(-iSCF/20.0)
+        if iSCF >= 20:
+            gamma_v_eff = gamma_v # *np.exp(-1.0)
         vd = vd_last*(1-gamma_v_eff) + getPotentialH(r, listPhi)*(gamma_v_eff)
         vd_last = vd[:]
         vxc = {}
@@ -439,7 +439,7 @@ for iSCF in range(0, Nscf):
     bestPhi = {}
     E0 = 0
     for iOrb in sorted(listPhi.keys()):
-        listPhi[iOrb].Emin = -Z**2*0.5/listPhi[iOrb].n**2
+        listPhi[iOrb].Emin = -Z**2/listPhi[iOrb].n**2 
         listPhi[iOrb].Emax = 0
 
     listPhi_prev = {}
@@ -449,7 +449,7 @@ for iSCF in range(0, Nscf):
 
         [J, F0, nF0, Nr, N, idxE] = getLinSyst(listPhi, r, pot, vd, vxc)
 
-        print bcolors.WARNING + "(SCF it. %d, NR it. %d) Current minimisation function value \sum F_i^2 = %.10f. Best minimum found in NR it. min \sum F_i^2 = %.10f" % (iSCF, iN, nF0, minF0Sum) + bcolors.ENDC
+        print bcolors.WARNING + "(SCF it. %d, NR it. %d) Current minimisation function value \sum F_i^2 = %.14f. Best minimum found in NR it. min \sum F_i^2 = %.14f" % (iSCF, iN, nF0, minF0Sum) + bcolors.ENDC
         finishNow = False
         if nF0 < minF0Sum:
             minF0Sum = nF0
@@ -470,13 +470,13 @@ for iSCF in range(0, Nscf):
                 for iOrb in listPhi:
                     listPhi[iOrb] = listPhi_prev[iOrb]
                 [J, F0, nF0, Nr, N, idxE] = getLinSyst(listPhi, r, pot, vd, vxc)
-                print bcolors.WARNING + "(SCF it. %d, NR it. %d) New function is bigger than previous iteration. Going back and reducing the step to gamma = %.10f. Current minimisation function value \sum F_i^2 = %.10f. Best minimum found in NR it. min \sum F_i^2 = %.10f" % (iSCF, iN, gamma*scale_gamma, nF0, minF0Sum) + bcolors.ENDC
+                print bcolors.WARNING + "(SCF it. %d, NR it. %d) New function is bigger than previous iteration. Going back and reducing the step to gamma = %.14f. Current minimisation function value \sum F_i^2 = %.14f. Best minimum found in NR it. min \sum F_i^2 = %.14f" % (iSCF, iN, gamma*scale_gamma, nF0, minF0Sum) + bcolors.ENDC
                 # as the function value grew, let's end this ...
-                abortIt = True
-                break
+                #abortIt = True
+                #break
 
 
-        gamma = 0.2*scale_gamma
+        gamma = 0.3*scale_gamma
 
         no_old = {}
         for iOrb in listPhi:
@@ -518,39 +518,40 @@ for iSCF in range(0, Nscf):
             l = listPhi[iOrb].l
             dE = - gamma*dX[idxE+nOrb]
 
-            if no[iOrb] > nodes(listPhi[iOrb].n, listPhi[iOrb].l) and listPhi[iOrb].wait <= 0:
-                listPhi[iOrb].Emax = listPhi[iOrb].E
-                if nodes(listPhi[iOrb].n, listPhi[iOrb].l) != 0 and no[iOrb] != 0:
-                    dE = -np.fabs(Z**2*0.5/(nodes(listPhi[iOrb].n, listPhi[iOrb].l)**2) - Z**2*0.5/(no[iOrb]**2))*0.1
-                elif nodes(listPhi[iOrb].n, listPhi[iOrb].l) != 0:
-                    dE = -np.fabs(Z**2*0.5/(nodes(listPhi[iOrb].n, listPhi[iOrb].l)**2))*0.1
-                elif no[iOrb] != 0:
-                    dE = -np.fabs(Z**2*0.5/(no[iOrb]**2))*0.1
-                else:
-                    dE = -0.001
-                dE = (listPhi[iOrb].Emax + listPhi[iOrb].Emin)*0.5 - listPhi[iOrb].E
-                listPhi[iOrb].E += dE
-                for ir in range(0, len(r)):
-                    listPhi[iOrb].psi[ir] = 1
-                    listPhi[iOrb].rpsi[ir] = 0
-                listPhi[iOrb].wait = Nwait
-            elif no[iOrb] < nodes(listPhi[iOrb].n, listPhi[iOrb].l) and listPhi[iOrb].wait <= 0:
-                listPhi[iOrb].Emin = listPhi[iOrb].E
-                if nodes(listPhi[iOrb].n, listPhi[iOrb].l) != 0 and no[iOrb] != 0:
-                    dE = np.fabs(Z**2*0.5/(nodes(listPhi[iOrb].n, listPhi[iOrb].l)**2) - Z**2*0.5/(no[iOrb]**2))*0.1
-                elif nodes(listPhi[iOrb].n, listPhi[iOrb].l) != 0:
-                    dE = np.fabs(Z**2*0.5/(nodes(listPhi[iOrb].n, listPhi[iOrb].l)**2))*0.1
-                elif no[iOrb] != 0:
-                    dE = np.fabs(Z**2*0.5/(no[iOrb]**2))*0.1
-                else:
-                    dE = 0.001
-                dE = (listPhi[iOrb].Emax + listPhi[iOrb].Emin)*0.5 - listPhi[iOrb].E
-                listPhi[iOrb].E += dE
-                for ir in range(0, len(r)):
-                    listPhi[iOrb].psi[ir] = 1
-                    listPhi[iOrb].rpsi[ir] = 0
-                listPhi[iOrb].wait = Nwait
-            else:
+            #if no[iOrb] > nodes(listPhi[iOrb].n, listPhi[iOrb].l) and listPhi[iOrb].wait <= 0:
+            #    listPhi[iOrb].Emax = listPhi[iOrb].E
+            #    if nodes(listPhi[iOrb].n, listPhi[iOrb].l) != 0 and no[iOrb] != 0:
+            #        dE = -np.fabs(Z**2*0.5/(nodes(listPhi[iOrb].n, listPhi[iOrb].l)**2) - Z**2*0.5/(no[iOrb]**2))*0.1
+            #    elif nodes(listPhi[iOrb].n, listPhi[iOrb].l) != 0:
+            #        dE = -np.fabs(Z**2*0.5/(nodes(listPhi[iOrb].n, listPhi[iOrb].l)**2))*0.1
+            #    elif no[iOrb] != 0:
+            #        dE = -np.fabs(Z**2*0.5/(no[iOrb]**2))*0.1
+            #    else:
+            #        dE = -0.001
+            #    dE = (listPhi[iOrb].Emax + listPhi[iOrb].Emin)*0.5 - listPhi[iOrb].E
+            #    listPhi[iOrb].E += dE
+            #    for ir in range(0, len(r)):
+            #        listPhi[iOrb].psi[ir] = 1
+            #        listPhi[iOrb].rpsi[ir] = 0
+            #    listPhi[iOrb].wait = Nwait
+            #elif no[iOrb] < nodes(listPhi[iOrb].n, listPhi[iOrb].l) and listPhi[iOrb].wait <= 0:
+            #    listPhi[iOrb].Emin = listPhi[iOrb].E
+            #    if nodes(listPhi[iOrb].n, listPhi[iOrb].l) != 0 and no[iOrb] != 0:
+            #        dE = np.fabs(Z**2*0.5/(nodes(listPhi[iOrb].n, listPhi[iOrb].l)**2) - Z**2*0.5/(no[iOrb]**2))*0.1
+            #    elif nodes(listPhi[iOrb].n, listPhi[iOrb].l) != 0:
+            #        dE = np.fabs(Z**2*0.5/(nodes(listPhi[iOrb].n, listPhi[iOrb].l)**2))*0.1
+            #    elif no[iOrb] != 0:
+            #        dE = np.fabs(Z**2*0.5/(no[iOrb]**2))*0.1
+            #    else:
+            #        dE = 0.001
+            #    dE = (listPhi[iOrb].Emax + listPhi[iOrb].Emin)*0.5 - listPhi[iOrb].E
+            #    listPhi[iOrb].E += dE
+            #    for ir in range(0, len(r)):
+            #        listPhi[iOrb].psi[ir] = 1
+            #        listPhi[iOrb].rpsi[ir] = 0
+            #    listPhi[iOrb].wait = Nwait
+            #else:
+            if True:
                 if np.fabs(dE) > 0.1:
                     dE = 0.1*dE/np.fabs(dE)
                 listPhi[iOrb].E += dE
@@ -663,15 +664,15 @@ for iSCF in range(0, Nscf):
             #if no[iOrb] != nodes(n, l):
             #    import sys
             #    sys.exit(0)
-        print bcolors.WARNING + "(SCF it. %d, NR it. %d) Ground state calculation: E0 = %5f eV, \sum \epsilon = %5f eV, J = %5f eV, K = %5f eV" % (iSCF, iN, E0*eV, sumEV*eV, J*eV, K*eV) + bcolors.ENDC
-        if minF0Sum < 1e-9*float(len(listPhi)) and finishNow:
-            print bcolors.WARNING + "(SCF it. %d, NR it. %d) Ending Newton-Raphson iterations due to very small target function: \sum F0^2 = %.10f." % (iSCF, iN, minF0Sum) + bcolors.ENDC
+        print bcolors.WARNING + "(SCF it. %d, NR it. %d) Ground state calculation: E0 = %.14f eV, \sum \epsilon = %.14f eV, J = %.14f eV, K = %.14f eV" % (iSCF, iN, E0*eV, sumEV*eV, J*eV, K*eV) + bcolors.ENDC
+        if minF0Sum < 1e-10*float(len(listPhi)) and finishNow:
+            print bcolors.WARNING + "(SCF it. %d, NR it. %d) Ending Newton-Raphson iterations due to very small target function: \sum F0^2 = %.14f." % (iSCF, iN, minF0Sum) + bcolors.ENDC
             break
 
-    if (np.fabs(1 - E0_old/E0) < 1e-7*Z and iSCF > 5) or abortIt:
-        print bcolors.WARNING + "(SCF it. %d) Ground state energy changed by less than Z*1e-7 (by %8f). E0 = %8f eV." % (iSCF, np.fabs(1 - E0_old/E0), E0*eV) + '' + bcolors.ENDC
+    if (np.fabs(1 - E0_old/E0) < 1e-8*Z and iSCF > 5) or abortIt:
+        print bcolors.WARNING + "(SCF it. %d) Ground state energy changed by less than Z*1e-7 (by %.14f). E0 = %.14f eV." % (iSCF, np.fabs(1 - E0_old/E0), E0*eV) + '' + bcolors.ENDC
         break
     else:
-        print bcolors.WARNING + "(SCF it. %d ends) E0 = %8f eV, dE0/E0 = %8f" % (iSCF, E0*eV, (E0 - E0_old)/E0) +'' + bcolors.ENDC
+        print bcolors.WARNING + "(SCF it. %d ends) E0 = %.14f eV, dE0/E0 = %.14f" % (iSCF, E0*eV, (E0 - E0_old)/E0) +'' + bcolors.ENDC
     E0_old = E0
 
