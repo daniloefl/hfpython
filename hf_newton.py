@@ -64,32 +64,49 @@ def Y(l, m, theta, phi):
     # TO DO: add more
     return 0
 
-def CGo(l1, l2, m1, m2, l, m):
-    if np.fabs(m - m1 - m2) > 1e-5:
+def Yavg(l, m):
+    if l == 0:
+        return (1.0/(4*np.pi))**0.5
+    elif (l >= 1 and m == 0) or (l >= 1 and (m == l or m == -l)):
         return 0
-    if m < 0:
-        return (-1)**(l-l1-l2)*CGo(l1, l2, -m1, -m2, l, -m)
-    if l1 < l2:
-        return (-1)**(l-l1-l2)*CGo(l2, l1, m2, m1, l, m)
-    if l2 == 0:
-        if l == l1 and m == m1:
-            return 1
+    elif (int(l)%2) == 1:
         return 0
-    if l1 == 0.5 and l2 == 0.5:
-        if m == 1 and m1 == 0.5 and m2 == 0.5 and l == 1:
-            return 1
-        if m == -1 and m1 == -0.5 and m2 == -0.5 and l == 1:
-            return 1
-        if m == 0 and m1 == 0.5 and m2 == -0.5 and l == 1:
-            return 1.0/np.sqrt(2)
-        if m == 0 and m1 == -0.5 and m2 == 0.5 and l == 1:
-            return 1.0/np.sqrt(2)
-        if m == 0 and m1 == 0.5 and m2 == -0.5 and l == 0:
-            return 1.0/np.sqrt(2)
-        if m == 0 and m1 == -0.5 and m2 == 0.5 and l == 0:
-            return -1.0/np.sqrt(2)
-        return 0
+    # TO DO: add more
     return 0
+
+def factorial(n):
+    if n == 1:
+        return 1
+    elif n == 0:
+        return 1
+    elif n < 0:
+        return -100000000000000.0
+    return n * factorial(n-1)
+
+def CG(j1, j2, m1, m2, j, m):
+    if abs(m) > j:
+        return 0
+    if j1 + j2 < j:
+        return 0
+    if abs(j1-j2) > j:
+        return 0
+    if m1+m2 != m:
+        return 0
+    if (j1 - j2 - m)%1 != 0:
+        return 0
+    if (j1 - j2 + m)%1 != 0:
+        return 0
+    a = ((factorial(j1+j2-j)*factorial(j1-j2+j)*factorial(-j1+j2+j))/(factorial(j1+j2+j+1.0)))**.5
+    b = (factorial(j1+m1)*factorial(j1-m1)*factorial(j2+m2)*factorial(j2-m2)*factorial(j-m)*factorial(j+m))**.5
+    c = 0.0
+    z = 0
+    while z < (j1-m1+3):
+        c+=((-1.0)**(z+j1-j2+m))/(factorial(z)*factorial(j1+j2-j-z)*factorial(j1-m1-z)*factorial(j2+m2-z)*factorial(j-j2+m1+z)*factorial(j-j1-m2+z))
+        z += 1
+    d = ((-1.0)**(j1-j2+m))*((2.0*j+1.0)**.5)*a*b*c
+    if abs(d) < 1e-4:
+        d = 0
+    return d
 
 ## potential calculation
 # calculate int rpsi1(r1)*Ylm(t1, p1)*rpsi1(r1)*Ylm(t1, p1)/|r1-r2| r^2 sin t1 dt1 dp1 dr1
@@ -367,46 +384,6 @@ def calculateE0(r, listPhi, vd, vxc):
     dE0 = np.sqrt(dE0)
     return [E0, sumEV, J, K, dE0]
 
-def factorial(n):
-    if n == 1:
-        return 1
-    elif n == 0:
-        return 1
-    elif n < 0:
-        return -100000000000000.0
-    return n * factorial(n-1)
-
-def CG(j1, j2, m1, m2, j, m):
-    if abs(m) > j:
-        return 0
-    if j1 + j2 < j:
-        return 0
-    if abs(j1-j2) > j:
-        return 0
-    if m1+m2 != m:
-        return 0
-    if (j1 - j2 - m)%1 != 0:
-        return 0
-    if (j1 - j2 + m)%1 != 0:
-        return 0
-    a = ((factorial(j1+j2-j)*factorial(j1-j2+j)*factorial(-j1+j2+j))/(factorial(j1+j2+j+1.0)))**.5
-    b = (factorial(j1+m1)*factorial(j1-m1)*factorial(j2+m2)*factorial(j2-m2)*factorial(j-m)*factorial(j+m))**.5
-    c = 0.0
-    z = 0
-    while z < (j1-m1+3):
-        c+=((-1.0)**(z+j1-j2+m))/(factorial(z)*factorial(j1+j2-j-z)*factorial(j1-m1-z)*factorial(j2+m2-z)*factorial(j-j2+m1+z)*factorial(j-j1-m2+z))
-        z += 1
-    d = ((-1.0)**(j1-j2+m))*((2.0*j+1.0)**.5)*a*b*c
-    if abs(d) < 1e-4:
-        d = 0
-    return d
-
-def Yavg(l, m):
-    if l == 0:
-        return (1.0/(4*np.pi))**0.5
-    
-    return (1.0/(4*np.pi))**0.5
-
 ## potential calculation
 # calculate int rpsi1(r1)*Ylm(t1, p1)*rpsi1(r1)*Ylm(t1, p1)/|r1-r2| r^2 sin t1 dt1 dp1 dr1
 # 1/|r1 - r2| = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1) rs^l/rb^(l+1) Ylm(t1, p1) Ylm(t2, p2)
@@ -417,7 +394,7 @@ def Yavg(l, m):
 # = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1)   (int rpsi(r1)^2 rs^l/rb^(l+1) r1^2 dr1) (-1)^m sqrt( (2l+1)*(2l+1) / (4 pi (2l+1)) ) <ll00|l0> <llmm|l -m> Ylm(t2, p2)
 def getPotentialHAna(r, phiList):
     totalVd = np.zeros(len(r), dtype=np.float64)
-    lmax = 7
+    lmax = 10
     for iOrb in phiList.keys():
         Vd = np.zeros(len(r), dtype=np.float64)
         for z in range(0, len(r)):
@@ -457,7 +434,7 @@ def getPotentialHAna(r, phiList):
 # = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1)   (int rpsi(r1) rpsi2(r1) rs^l/rb^(l+1) r1^2 dr1) (-1)^m sqrt( (2l1+1)*(2l2+1) / (4 pi (2l+1)) ) <l1l200|l0> <l1l2m1m2|l -m> Ylm(t2, p2)
 def getPotentialXAna(r, phiList, iOrb):
     totalVx = {}
-    lmax = 6
+    lmax = 10
     for jOrb in phiList.keys():
         if ('+' in jOrb and '-' in iOrb) or ('-' in jOrb and '+' in iOrb):
               continue
