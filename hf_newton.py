@@ -394,7 +394,8 @@ def calculateE0(r, listPhi, vd, vxc):
 # = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1)   (int rpsi(r1)^2 rs^l/rb^(l+1) r1^2 dr1) (-1)^m sqrt( (2l+1)*(2l+1) / (4 pi (2l+1)) ) <ll00|l0> <llmm|l -m> Ylm(t2, p2)
 def getPotentialHAna(r, phiList):
     totalVd = np.zeros(len(r), dtype=np.float64)
-    lmax = 10
+    lmax = 1 # should be infinity, but when we average on theta and phi
+             # the average spherical harmonic is zero, except for l = 0
     for iOrb in phiList.keys():
         Vd = np.zeros(len(r), dtype=np.float64)
         for z in range(0, len(r)):
@@ -434,7 +435,8 @@ def getPotentialHAna(r, phiList):
 # = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1)   (int rpsi(r1) rpsi2(r1) rs^l/rb^(l+1) r1^2 dr1) (-1)^m sqrt( (2l1+1)*(2l2+1) / (4 pi (2l+1)) ) <l1l200|l0> <l1l2m1m2|l -m> Ylm(t2, p2)
 def getPotentialXAna(r, phiList, iOrb):
     totalVx = {}
-    lmax = 10
+    lmax = 1 # should be infinity, but when we average on theta and phi
+             # the average spherical harmonic is zero, except for l = 0
     for jOrb in phiList.keys():
         if ('+' in jOrb and '-' in iOrb) or ('-' in jOrb and '+' in iOrb):
               continue
@@ -663,13 +665,13 @@ def savePlotInFile(fname, r, pot, legend, ylabel = '', yrange = [-5,5]):
         f.write("end\n")
     f.close()
 
-Z = 5
+Z = 6
 
 xmin = np.log(1e-4)
 dx = 1e-1/Z
 r = init(dx, Z*150, xmin)
 
-useMC = False
+useMC = True #False
 
 listPhi = {}
 # create objects to hold energy and wave functions of each Hartree-Fock equation
@@ -681,6 +683,7 @@ listPhi['1s1-'] = phi(1, 0, 0, -Z**2/(1.0**2)*0.5)
 listPhi['2s1+'] = phi(2, 0, 0, -Z**2/(2.0**2)*0.5)
 listPhi['2s1-'] = phi(2, 0, 0, -Z**2/(2.0**2)*0.5)
 listPhi['2p1+'] = phi(2, 1, 0, -Z**2/(2.0**2)*0.5)
+listPhi['2p2+'] = phi(2, 1, -1, -Z**2/(2.0**2)*0.5)
 
 Nwait = 4*len(listPhi)
 
@@ -733,7 +736,7 @@ for iSCF in range(0, Nscf):
         if iSCF >= 20:
             gamma_v_eff = gamma_v # *np.exp(-1.0)
         if useMC:
-            vd = vd_last*(1-gamma_v_eff) + getPotentialHMC(r, listPhi)*(gamma_v_eff)
+            vd = vd_last*(1-gamma_v_eff) + getPotentialH(r, listPhi)*(gamma_v_eff)
         else:
             vd = vd_last*(1-gamma_v_eff) + getPotentialHAna(r, listPhi)*(gamma_v_eff)
         vd_last = vd[:]
@@ -741,7 +744,7 @@ for iSCF in range(0, Nscf):
         vxc_new = {}
         for iOrb in sorted(listPhi.keys()):
             if useMC:
-                vxc_new[iOrb] = getPotentialXCMC(r, listPhi, iOrb)
+                vxc_new[iOrb] = getPotentialX(r, listPhi, iOrb)
             else:
                 vxc_new[iOrb] = getPotentialXAna(r, listPhi, iOrb)
             vxc[iOrb] = {}
