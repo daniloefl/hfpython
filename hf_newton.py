@@ -399,7 +399,7 @@ def calculateE0(r, listPhi, vd, vxc):
 # it can be calculated using (A4.40) from Joachaim again
 def getPotentialHAna(r, phiList):
     totalVd = np.zeros(len(r), dtype=np.float64)
-    lmax = 10
+    lmax = 20
     for iOrb in phiList.keys():
         Vd = np.zeros(len(r), dtype=np.float64)
         for z in range(0, len(r)):
@@ -446,7 +446,7 @@ def getPotentialHAna(r, phiList):
 # it can be calculated using (A4.40) from Joachaim again
 def getPotentialXAna(r, phiList, iOrb):
     totalVx = {}
-    lmax = 10
+    lmax = 20
     for jOrb in phiList.keys():
         if ('+' in jOrb and '-' in iOrb) or ('-' in jOrb and '+' in iOrb):
               continue
@@ -675,7 +675,7 @@ def savePlotInFile(fname, r, pot, legend, ylabel = '', yrange = [-5,5]):
         f.write("end\n")
     f.close()
 
-Z = 5
+Z = 6
 
 xmin = np.log(1e-4)
 dx = 1e-1/Z
@@ -693,7 +693,7 @@ listPhi['1s1-'] = phi(1, 0, 0, -Z**2/(1.0**2)*0.5)
 listPhi['2s1+'] = phi(2, 0, 0, -Z**2/(2.0**2)*0.5)
 listPhi['2s1-'] = phi(2, 0, 0, -Z**2/(2.0**2)*0.5)
 listPhi['2p1+'] = phi(2, 1, 0, -Z**2/(2.0**2)*0.5)
-#listPhi['2p2+'] = phi(2, 1, -1, -Z**2/(2.0**2)*0.5)
+listPhi['2p2+'] = phi(2, 1, -1, -Z**2/(2.0**2)*0.5)
 
 Nwait = 4*len(listPhi)
 
