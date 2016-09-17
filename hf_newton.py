@@ -392,10 +392,14 @@ def calculateE0(r, listPhi, vd, vxc):
 # int Ylm^3(t1, p1) dOmega1 = ... (A4.40)
 #                           = (-1)^m sqrt( (2l+1)*(2l+1) / (4 pi (2l+1)) ) <ll00|l0> <llmm|l -m>
 # = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1)   (int rpsi(r1)^2 rs^l/rb^(l+1) r1^2 dr1) (-1)^m sqrt( (2l+1)*(2l+1) / (4 pi (2l+1)) ) <ll00|l0> <llmm|l -m> Ylm(t2, p2)
+# we integrate out the full equation after multiplying it by the spherical harmonic
+# of that orbital, which is equivalent to multiplying it by one, dut to the orthonormality conditions
+# but this term will create a factor of int Ylm(t2,p2) * Ykn(t2,p2) * Ykn(t2, p2) dOmega
+# where k, n are l and m for this orbital
+# it can be calculated using (A4.40) from Joachaim again
 def getPotentialHAna(r, phiList):
     totalVd = np.zeros(len(r), dtype=np.float64)
-    lmax = 1 # should be infinity, but when we average on theta and phi
-             # the average spherical harmonic is zero, except for l = 0
+    lmax = 10
     for iOrb in phiList.keys():
         Vd = np.zeros(len(r), dtype=np.float64)
         for z in range(0, len(r)):
@@ -417,8 +421,10 @@ def getPotentialHAna(r, phiList):
                         rb = r1
                     C += phiList[iOrb].rpsi[y]**2*(rs**l)/(rb**(l+1))*(r1**2)*dr
                 K = 0
+                l1 = phiList[iOrb].l
+                m1 = phiList[iOrb].m
                 for m in range(-l, l+1):
-                    K += 4*np.pi/(2*l+1)*(-1.0)**float(m)*np.sqrt( (2*l+1)/(4*np.pi) )* CG(l, l, 0, 0, l, 0)*CG(l, l, m, m, l, -m)*Yavg(l, m)
+                    K += 4*np.pi/(2*l+1)*(-1.0)**float(m)*np.sqrt( (2*l+1)/(4*np.pi) )* CG(l, l, 0, 0, l, 0)*CG(l, l, m, m, l, -m)*((-1.0)**float(m)*np.sqrt( (2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)) )* CG(l1, l1, 0, 0, l, 0)*CG(l1, l1, m1, m1, l, -m))
                 C *= K
                 Vd[z] += C
         totalVd += Vd
@@ -433,10 +439,14 @@ def getPotentialHAna(r, phiList):
 # int Yl1m1(t1, p1) Yl2m2(t1, p1) Ylm(t1, p1) dOmega1 = ... (A4.40)
 #                           = (-1)^m sqrt( (2l1+1)*(2l2+1) / (4 pi (2l+1)) ) <l1l200|l0> <l1l2m1m2|l -m>
 # = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1)   (int rpsi(r1) rpsi2(r1) rs^l/rb^(l+1) r1^2 dr1) (-1)^m sqrt( (2l1+1)*(2l2+1) / (4 pi (2l+1)) ) <l1l200|l0> <l1l2m1m2|l -m> Ylm(t2, p2)
+# we integrate out the full equation after multiplying it by the spherical harmonic
+# of that orbital, which is equivalent to multiplying it by one, dut to the orthonormality conditions
+# but this term will create a factor of int Ylm(t2,p2) * Ykn(t2,p2) * Ykn(t2, p2) dOmega
+# where k, n are l and m for this orbital
+# it can be calculated using (A4.40) from Joachaim again
 def getPotentialXAna(r, phiList, iOrb):
     totalVx = {}
-    lmax = 1 # should be infinity, but when we average on theta and phi
-             # the average spherical harmonic is zero, except for l = 0
+    lmax = 10
     for jOrb in phiList.keys():
         if ('+' in jOrb and '-' in iOrb) or ('-' in jOrb and '+' in iOrb):
               continue
@@ -466,7 +476,7 @@ def getPotentialXAna(r, phiList, iOrb):
                 m1 = phiList[iOrb].m
                 m2 = phiList[jOrb].m
                 for m in range(-l, l+1):
-                    K += 4*np.pi/(2*l+1)*(-1.0)**float(m)*np.sqrt( (2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)) )* CG(l1, l2, 0, 0, l, 0)*CG(l1, l2, m1, m2, l, -m)*Yavg(l, m)
+                    K += 4*np.pi/(2*l+1)*(-1.0)**float(m)*np.sqrt( (2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)) )* CG(l1, l2, 0, 0, l, 0)*CG(l1, l2, m1, m2, l, -m)*((-1.0)**float(m)*np.sqrt( (2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)) )* CG(l1, l1, 0, 0, l, 0)*CG(l1, l1, m1, m1, l, -m))
                 C *= K
                 Vex[z] += C
         totalVx[jOrb] += Vex
@@ -665,13 +675,13 @@ def savePlotInFile(fname, r, pot, legend, ylabel = '', yrange = [-5,5]):
         f.write("end\n")
     f.close()
 
-Z = 6
+Z = 5
 
 xmin = np.log(1e-4)
 dx = 1e-1/Z
 r = init(dx, Z*150, xmin)
 
-useMC = True #False
+useMC = False
 
 listPhi = {}
 # create objects to hold energy and wave functions of each Hartree-Fock equation
@@ -683,7 +693,7 @@ listPhi['1s1-'] = phi(1, 0, 0, -Z**2/(1.0**2)*0.5)
 listPhi['2s1+'] = phi(2, 0, 0, -Z**2/(2.0**2)*0.5)
 listPhi['2s1-'] = phi(2, 0, 0, -Z**2/(2.0**2)*0.5)
 listPhi['2p1+'] = phi(2, 1, 0, -Z**2/(2.0**2)*0.5)
-listPhi['2p2+'] = phi(2, 1, -1, -Z**2/(2.0**2)*0.5)
+#listPhi['2p2+'] = phi(2, 1, -1, -Z**2/(2.0**2)*0.5)
 
 Nwait = 4*len(listPhi)
 
@@ -987,8 +997,8 @@ for iSCF in range(0, Nscf):
             break
 
     [E0, sumEV, J, K, dE0] = calculateE0(r, listPhi, vd, vxc)
-    if (np.fabs(1 - E0_old/E0) < 1e-2 and iSCF > 5) or abortIt:
-        print bcolors.WARNING + "(SCF it. %d) Ground state energy changed by less than 1e-2 (by %.14f). E0 = %.14f eV +/- %.14f. \sum e = %.14f eV. J = %.14f eV. K = %.14f eV." % (iSCF, np.fabs(1 - E0_old/E0), E0*eV, dE0*eV, sumEV*eV, J*eV, K*eV) + '' + bcolors.ENDC
+    if (np.fabs(1 - E0_old/E0) < 1e-4 and iSCF > 5) or abortIt:
+        print bcolors.WARNING + "(SCF it. %d) Ground state energy changed by less than 1e-4 (by %.14f). E0 = %.14f eV +/- %.14f. \sum e = %.14f eV. J = %.14f eV. K = %.14f eV." % (iSCF, np.fabs(1 - E0_old/E0), E0*eV, dE0*eV, sumEV*eV, J*eV, K*eV) + '' + bcolors.ENDC
         break
     else:
         print bcolors.WARNING + "(SCF it. %d ends) E0 = %.14f eV +/- %.14f, dE0/E0 = %.14f. \sum e = %.14f eV. J = %.14f eV. K = %.14f eV." % (iSCF, E0*eV, dE0*eV, (1 - E0_old/E0), sumEV*eV, J*eV, K*eV) + '' + bcolors.ENDC
