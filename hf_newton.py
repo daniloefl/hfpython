@@ -73,33 +73,6 @@ def factorial(n):
         return 1
     return n * factorial(n-1)
 
-'''
-def CG(j1, j2, m1, m2, j, m):
-    if abs(m) > j:
-        return 0
-    if j1 + j2 < j:
-        return 0
-    if abs(j1-j2) > j:
-        return 0
-    if m1+m2 != m:
-        return 0
-    if (j1 - j2 - m)%1 != 0:
-        return 0
-    if (j1 - j2 + m)%1 != 0:
-        return 0
-    a = ((factorial(j1+j2-j)*factorial(j1-j2+j)*factorial(-j1+j2+j))/(factorial(j1+j2+j+1.0)))**.5
-    b = (factorial(j1+m1)*factorial(j1-m1)*factorial(j2+m2)*factorial(j2-m2)*factorial(j-m)*factorial(j+m))**.5
-    c = 0.0
-    z = 0
-    while z < (j1-m1+3):
-        c+=((-1.0)**(z+j1-j2+m))/(factorial(z)*factorial(j1+j2-j-z)*factorial(j1-m1-z)*factorial(j2+m2-z)*factorial(j-j2+m1+z)*factorial(j-j1-m2+z))
-        z += 1
-    d = ((-1.0)**(j1-j2+m))*((2.0*j+1.0)**.5)*a*b*c
-    if abs(d) < 1e-4:
-        d = 0
-    return d
-'''
-
 def CG(j1, j2, m1, m2, j, m):
     if abs(m) > j:
         return 0
@@ -622,24 +595,22 @@ def calculateE0(r, listPhi, vd, vxc):
     dE0 = np.sqrt(dE0)
     return [E0, sumEV, J, K, dE0]
 
+# use this to assume all sub-shells are complete
+# should be exact if all sub-shells are complete
+'''
 ## potential calculation
 # term is:
 # V = int_Oa int_Ob int_ra rpsi1(ra) rpsi2(ra) Yl1m1(Oa) Yl2m2(Oa)/|ra-rb| ra^2 dOa dra Ylkmk(Ob) Ylkmk(Ob) dOb
 # with 1 = 2 -> iOrb
 # and k -> xOrb
 # 1/|ra - rb| = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1) r<^l/r>^(l+1) Ylm(Oa) Ylm(Ob)
-# V = \sum_ly \sum_my \sum_l=0^inf \sum_m=-l^l ( int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra ) (int_Oa Yl1m1(Oa) Yl2m2(Oa) Y*lm(Oa) dOa) (int Ylm(Ob) Ylkmk(Ob)  Y*lymy(Ob) dOb)
+# V = \sum_l=0^inf \sum_m=-l^l ( int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra ) (int_Oa Yl1m1(Oa) Yl2m2(Oa) Y*lm(Oa) dOa) Ylm(Ob)
 # beta(rb, l) = int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra
 # T1 = int_Oa Yl1m1(Oa) Yl2m2(Oa) Y*lm(Oa) dOa
-# T2 = int_Ob Ylkmk(Ob) Y*lymy(Ob) Ylm(Ob) dOb
-# V = \sum_mn \sum_l=0^inf beta(rb, l) T1(l, m) T2(l, m)
-# m = m1 + m2
-#
-# T1 = (-1)**m*(-1)**my*np.sqrt((2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)))*CG(l1, l2, 0, 0, l, 0)*CG(l1, l2, m1, m2, l, -(-m))
-# T2 = (-1)**my*np.sqrt((2*lk+1)*(2*lk+1)/(4*np.pi*(2*l+1)))*CG(lk, lk, 0, 0, l, 0)*CG(lk, ly, mk, my, l, -m)
-# T2' = Ylkmk(Ob) Ylm(Ob)
-# T2' = (lx, mx) np.sqrt((2*l+1)/(4*np.pi))*CG(lx,l,0,0,lx,0)*CG(lx,l,0,0,lx,mx)
-#
+# T2 = Ylm(Ob)
+# V = \sum_l=0^inf beta(rb, l) T1(l, m) T2(l, m)
+# assume we are in a filled shell and then we can factorize the sum of Ylm terms
+# in that case, the term is spherical
 def getPotentialHAna(r, phiList, xOrb):
     totalVd = np.zeros(len(r), dtype=np.float64)
     #lk = phiList[kOrb].l
@@ -687,13 +658,8 @@ def getPotentialHAna(r, phiList, xOrb):
 # V = \sum_l=0^inf \sum_m=-l^l ( int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra ) (int_Oa Yl1m1(Oa) Yl2m2(Oa) Ylm(Oa) dOa) (int Ylm(Ob) Ylkmk^2(Ob) dOb)
 # beta(rb, l) = int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra
 # T1 = int_Oa Yl1m1(Oa) Yl2m2(Oa) Y*lm(Oa) dOa
-# T2 = int_Ob Ylxmx(Ob) Y*lymy(Ob) Ylm(Ob) dOb
+# T2 = Ylm(Ob)
 # V = \sum_l=0^inf \sum_m=-l^l beta(rb, l) T1(l, m) T2(l, m)
-#
-# T1 = (-1)**m (-1)**m np.sqrt((2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)))*CG(l1, l2, 0, 0, l, 0)*CG(l1, l2, m1, m2, l, -(-m))
-# T2 = (-1)**m (-1)**my np.sqrt((2*lx+1)*(2*l1+1)/(4*np.pi*(2*l+1)))*CG(lx, l1, 0, 0, l, 0)*CG(lx, ly, mx, -my, l, -m)
-#
-# -m = 2mk = m1+m2 => zero except if m = -2mk = -m1 - m2
 def getPotentialXAna(r, phiList, iOrb):
     totalVx = {}
     for jOrb in phiList.keys():
@@ -729,6 +695,139 @@ def getPotentialXAna(r, phiList, iOrb):
                         rb = r1
                     beta += phiList[iOrb].rpsi[y]*phiList[jOrb].rpsi[y]*(rs**l)/(rb**(l+1))*r1**2*dr
                 Vex[z] += 1.0/float(nMTot)*(2*l2+1)/(2*l+1)*CG(l1, l2, 0, 0, l, 0)**2*beta
+        totalVx[jOrb] += Vex
+    return totalVx
+'''
+
+# average out in angle
+## potential calculation
+# term is:
+# V = int_Oa int_ra rpsi1(ra) rpsi2(ra) Yl1m1(Oa) Yl2m2(Oa)/|ra-rb| ra^2 dOa dra dOb / (4 pi)
+# with 1 = 2 -> iOrb
+# 1/|ra - rb| = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1) r<^l/r>^(l+1) Y*lm(Oa) Ylm(Ob)
+# V = \sum_l=0^inf \sum_m=-l^l ( int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra ) (int_Oa Yl1m1(Oa) Yl2m2(Oa) Y*lm(Oa) dOa) (int Ylm(Ob) dOb / (4*pi))
+# beta(rb, l) = int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra
+# T1 = int_Oa Yl1m1(Oa) Yl2m2(Oa) Y*lm(Oa) dOa
+# T2 = 1/(4pi) int_Ob Ylm(Ob) dOb
+#
+#
+# V = \sum_m \sum_l=0^inf beta(rb, l) T1(l, m) T2(l, m)
+#
+#
+# T1 = int Yl1m1 Yl1m1 Y*lm = (-1)**m int Yl1m1 Yl1m1 Yl(-m)
+# T1 = (-1)**m*(-1)**m*np.sqrt((2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)))*CG(l1,l1,0,0,l,0)*CG(l1,l1,m1,m1,l,-(-m))
+#
+# T2 = 1.0/(4*np.pi) int Ylm dOb
+#
+def getPotentialHAna(r, phiList, xOrb):
+    totalVd = np.zeros(len(r), dtype=np.float64)
+    for iOrb in phiList.keys():
+        Vd = np.zeros(len(r), dtype=np.float64)
+        l1 = phiList[iOrb].l
+        m1 = phiList[iOrb].m
+        
+        lx = phiList[xOrb].l
+        mx = phiList[xOrb].m
+
+        lmax = 2
+        for l in range(0, lmax+1):
+            for z in range(0, len(r)):
+                r2 = r[z]
+                beta = 0
+                # integrate in r1 with r2 fixed
+                for y in range(0, len(r)):
+                    r1 = r[y]
+                    dr = 0
+                    if y >= 1:
+                        dr = r[y] - r[y-1]
+                    else:
+                        dr = r[y]
+                    rs = r1
+                    rb = r2
+                    if rb < rs:
+                        rs = r2
+                        rb = r1
+                    beta += 4*np.pi/(2*l+1)*phiList[iOrb].rpsi[y]**2*rs**l/(rb**(l+1))*(r1**2)*dr
+                T = 0
+                for m in range(-l, l+1):
+                    # T1 = int Yl1m1 Yl1m1 Y*lm = (-1)**m int Yl1m1 Yl1m1 Yl(-m)
+                    # T1 = (-1)**m*(-1)**m*np.sqrt((2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)))*CG(l1,l1,0,0,l,0)*CG(l1,l1,m1,m1,l,-(-m))
+                    T1 = (-1)**m*np.sqrt((2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)))*CG(l1, l1, 0, 0, l, 0)*CG(l1, l1, m1, m1, l, -m)
+                    # just average effect in angles of Ylm by itself
+                    # average of Ylm is zero except for l = m = 0
+                    T2 = 0
+                    if l == 0 and m == 0:
+                        T2 = 1.0/np.sqrt(4*np.pi)
+                    T += T1*T2
+                Vd[z] += beta*T
+        totalVd += Vd
+    return totalVd
+
+
+## potential calculation
+# term is:
+# V = int_Oa int_Ob int_ra rpsi1(ra) rpsi2(ra) Yl1m1(Oa) Yl2m2(Oa)/|ra-rb| ra^2 dOa dra dOb / (4 pi)
+# with 1 -> iOrb
+# with 2 -> jOrb
+# 1/|ra - rb| = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1) r<^l/r>^(l+1) Y*lm(Oa) Ylm(Ob)
+# V = \sum_l=0^inf \sum_m=-l^l ( int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra ) (int_Oa Yl1m1(Oa) Yl2m2(Oa) Y*lm(Oa) dOa) (int Ylm(Ob) dOb) / (4*pi)
+# beta(rb, l) = int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra
+# T1 = int_Oa Yl1m1(Oa) Yl2m2(Oa) Y*lm(Oa) dOa
+# T2 = int_Ob Ylm(Ob) dOb
+#
+#
+# V = \sum_m \sum_l=0^inf beta(rb, l) T1(l, m) T2(l, m) / (4*pi)
+#
+#
+# T1 = int Yl1m1 Yl1m1 Y*lm = (-1)**m int Yl1m1 Yl1m1 Yl(-m)
+# T1 = (-1)**m*(-1)**m*np.sqrt((2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)))*CG(l1,l1,0,0,l,0)*CG(l1,l1,m1,m1,l,-(-m))
+#
+# T2 = 1.0/(4*np.pi) int Ylm
+#
+def getPotentialXAna(r, phiList, iOrb):
+    totalVx = {}
+    for jOrb in phiList.keys():
+        if ('+' in jOrb and '-' in iOrb) or ('-' in jOrb and '+' in iOrb):
+              continue
+        totalVx[jOrb] = np.zeros(len(r), dtype=np.float64)
+        Vex = np.zeros(len(r), dtype=np.float64)
+        lx = phiList[jOrb].l
+        mx = phiList[jOrb].m
+        l1 = phiList[iOrb].l
+        m1 = phiList[iOrb].m
+        l2 = phiList[jOrb].l
+        m2 = phiList[jOrb].m
+
+        lmax = 2
+        for l in range(0, lmax+1):
+            for z in range(0, len(r)):
+                r2 = r[z]
+                beta = 0
+                # integrate in r1 with r2 fixed
+                for y in range(0, len(r)):
+                    r1 = r[y]
+                    dr = 0
+                    if y >= 1:
+                        dr = r[y] - r[y-1]
+                    else:
+                        dr = r[y]
+                    rs = r1
+                    rb = r2
+                    if rb < rs:
+                        rs = r2
+                        rb = r1
+                    beta += 4*np.pi/(2*l+1)*phiList[iOrb].rpsi[y]*phiList[jOrb].rpsi[y]*rs**l/(rb**(l+1))*(r1**2)*dr
+                T = 0
+                for m in range(-l, l+1):
+                    # T1 = int Yl1m1 Yl2m2 Y*lm = (-1)**m int Yl1m1 Yl2m2 Yl(-m)
+                    # T1 = (-1)**m*(-1)**m*np.sqrt((2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)))*CG(l1,l2,0,0,l,0)*CG(l1,l2,m1,m2,l,-(-m))
+                    T1 = np.sqrt((2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)))*CG(l1, l2, 0, 0, l, 0)*CG(l1, l2, m1, m2, l, -(-m))
+                    # just average effect in angles of Ylm by itself
+                    T2 = 0
+                    if l == 0 and m == 0:
+                        T2 = 1.0/np.sqrt(4*np.pi)
+                    T += T1*T2
+                Vex[z] += beta*T
         totalVx[jOrb] += Vex
     return totalVx
 
