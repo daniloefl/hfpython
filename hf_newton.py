@@ -64,25 +64,16 @@ def Y(l, m, theta, phi):
     # TO DO: add more
     return 0
 
-def Yavg(l, m):
-    if l == 0:
-        return (1.0/(4*np.pi))**0.5
-    elif (l >= 1 and m == 0) or (l >= 1 and (m == l or m == -l)):
-        return 0
-    elif (int(l)%2) == 1:
-        return 0
-    # TO DO: add more
-    return 0
-
 def factorial(n):
     if n == 1:
         return 1
     elif n == 0:
         return 1
     elif n < 0:
-        return -100000000000000.0
+        return 1
     return n * factorial(n-1)
 
+'''
 def CG(j1, j2, m1, m2, j, m):
     if abs(m) > j:
         return 0
@@ -107,6 +98,253 @@ def CG(j1, j2, m1, m2, j, m):
     if abs(d) < 1e-4:
         d = 0
     return d
+'''
+
+def CG(j1, j2, m1, m2, j, m):
+    if abs(m) > j:
+        return 0
+    if j1 + j2 < j:
+        return 0
+    if abs(j1-j2) > j:
+        return 0
+    if m1+m2 != m:
+        return 0
+    if j1 < j2:
+        return (-1.0)**(j-j1-j2)*CG(j2,j1,m2,m1,j,m)
+    if m < 0:
+        return (-1.0)**(j-j1-j2)*CG(j1,j2,-m1,-m2,j,-m)
+    if j2 == 0:
+        if j == j1 and m == m1:
+            return 1
+        else:
+            return 0
+    elif j1 == 1 and j2 == 1:
+        if m == 2:
+            if m1 == 1 and m2 == 1 and j == 2:
+                return 1
+            else:
+                return 0
+        elif m == 1:
+            if m1 == 1 and m2 == 0 and j == 2:
+                return 0.5**0.5
+            elif m1 == 1 and m2 == 0 and j == 1:
+                return 0.5**0.5
+            elif m1 == 0 and m2 == 1 and j == 1:
+                return - (0.5**0.5)
+            elif m1 == 1 and m2 == 0 and j == 2:
+                return (0.5**0.5)
+            else:
+                return 0
+        elif m == 0:
+            if m1 == 1 and m2 == -1 and j == 2:
+                return (1.0/6.0)**0.5
+            elif m1 == 1 and m2 == -1 and j == 1:
+                return (1.0/2.0)**0.5
+            elif m1 == 1 and m2 == -1 and j == 0:
+                return (1.0/3.0)**0.5
+            elif m1 == 0 and m2 == 0 and j == 2:
+                return (2.0/3.0)**0.5
+            elif m1 == 0 and m2 == 0 and j == 1:
+                return 0
+            elif m1 == 0 and m2 == 0 and j == 0:
+                return - (1.0/3.0)**0.5
+            elif m1 == -1 and m2 == 1 and j == 2:
+                return (1.0/6.0)**0.5
+            elif m1 == -1 and m2 == 1 and j == 1:
+                return - (1.0/2.0)**0.5
+            elif m1 == -1 and m2 == 1 and j == 0:
+                return (1.0/3.0)**0.5
+            else:
+                return 0
+        else:
+            return 0
+    elif j1 == 2 and j2 == 1:
+        if m == 3:
+            if m1 == 2 and m2 == 1 and j == 3:
+                return 1
+            else:
+                return 0
+        elif m == 2:
+            if m1 == 2 and m2 == 0 and j == 3:
+                return (1.0/3.0)**0.5
+            elif m1 == 2 and m2 == 0 and j == 2:
+                return (2.0/3.0)**0.5
+            elif m1 == 1 and m2 == 1 and j == 3:
+                return (2.0/3.0)**0.5
+            elif m1 == 1 and m2 == 1 and j == 2:
+                return - (1.0/3.0)**0.5
+            else:
+                return 0
+        elif m == 1:
+            if m1 == 2 and m2 == -1 and j == 3:
+                return (1.0/15.0)**0.5
+            elif m1 == 2 and m2 == -1 and j == 2:
+                return (1.0/3.0)**0.5
+            elif m1 == 2 and m2 == -1 and j == 1:
+                return (3.0/5.0)**0.5
+            elif m1 == 1 and m2 == 0 and j == 3:
+                return (8.0/15.0)**0.5
+            elif m1 == 1 and m2 == 0 and j == 2:
+                return (1.0/16.0)**0.5
+            elif m1 == 1 and m2 == 0 and j == 1:
+                return - (3.0/10.0)**0.5
+            elif m1 == 0 and m2 == 1 and j == 3:
+                return (2.0/5.0)**0.5
+            elif m1 == 0 and m2 == 1 and j == 2:
+                return -(1.0/2.0)**0.5
+            elif m1 == 0 and m2 == 1 and j == 1:
+                return (1.0/10.0)**0.5
+            else:
+                return 0
+        elif m == 0:
+            if m1 == 1 and m2 == -1 and j == 3:
+                return (1.0/5.0)**0.5
+            elif m1 == 1 and m2 == -1 and j == 2:
+                return (1.0/2.0)**0.5
+            elif m1 == 1 and m2 == -1 and j == 1:
+                return (3.0/10.0)**0.5
+            elif m1 == 0 and m2 == 0 and j == 3:
+                return (3.0/5.0)**0.5
+            elif m1 == 0 and m2 == 0 and j == 2:
+                return 0
+            elif m1 == 0 and m2 == 0 and j == 1:
+                return - (2.0/5.0)**0.5
+            elif m1 == -1 and m2 == 1 and j == 3:
+                return (1.0/5.0)**0.5
+            elif m1 == -1 and m2 == 1 and j == 2:
+                return - (1.0/2.0)**0.5
+            elif m1 == -1 and m2 == 1 and j == 1:
+                return - (3.0/10.0)**0.5
+            else:
+                return 0
+    elif j1 == 2 and j2 == 2:
+        if m == 4:
+            if m1 == 2 and m2 == 2 and j == 4:
+                return 1
+            else:
+                return 0
+        elif m == 3:
+            if m1 == 2 and m2 == 1 and j == 4:
+                return (1.0/2.0)**0.5
+            elif m1 == 2 and m2 == 1 and j == 3:
+                return (1.0/2.0)**0.5
+            elif m1 == 1 and m2 == 2 and j == 4:
+                return (1.0/2.0)**0.5
+            elif m1 == 1 and m2 == 2 and j == 3:
+                return - (1.0/2.0)**0.5
+            else:
+                return 0
+        elif m == 2:
+            if m1 == 2 and m2 == 0 and j == 4:
+                return (3.0/14.0)**0.5
+            elif m1 == 2 and m2 == 0 and j == 3:
+                return (1.0/2.0)**0.5
+            elif m1 == 2 and m2 == 0 and j == 2:
+                return (2.0/7.0)**0.5
+            elif m1 == 1 and m2 == 1 and j == 4:
+                return (4.0/7.0)**0.5
+            elif m1 == 1 and m2 == 1 and j == 3:
+                return 0
+            elif m1 == 1 and m2 == 1 and j == 2:
+                return - (3.0/7.0)**0.5
+            elif m1 == 0 and m2 == 2 and j == 4:
+                return (3.0/14.0)**0.5
+            elif m1 == 0 and m2 == 2 and j == 3:
+                return -(1.0/2.0)**0.5
+            elif m1 == 0 and m2 == 2 and j == 2:
+                return (2.0/7.0)**0.5
+            else:
+                return 0
+        elif m == 1:
+            if m1 == 2 and m2 == -1 and j == 4:
+                return (1.0/14.0)**0.5
+            elif m1 == 2 and m2 == -1 and j == 3:
+                return (3.0/10.0)**0.5
+            elif m1 == 2 and m2 == -1 and j == 2:
+                return (3.0/7.0)**0.5
+            elif m1 == 2 and m2 == -1 and j == 1:
+                return (1.0/5.0)**0.5
+            elif m1 == 1 and m2 == 0 and j == 4:
+                return (3.0/7.0)**0.5
+            elif m1 == 1 and m2 == 0 and j == 3:
+                return (1.0/5.0)**0.5
+            elif m1 == 1 and m2 == 0 and j == 2:
+                return - (1.0/14.0)**0.5
+            elif m1 == 1 and m2 == 0 and j == 1:
+                return - (3.0/10.0)**0.5
+            elif m1 == 0 and m2 == 1 and j == 4:
+                return (3.0/7.0)**0.5
+            elif m1 == 0 and m2 == 1 and j == 3:
+                return - (1.0/5.0)**0.5
+            elif m1 == 0 and m2 == 1 and j == 2:
+                return - (1.0/14.0)**0.5
+            elif m1 == 0 and m2 == 1 and j == 1:
+                return - (3.0/10.0)**0.5
+            elif m1 == -1 and m2 == 2 and j == 4:
+                return (1.0/14.0)**0.5
+            elif m1 == -1 and m2 == 2 and j == 3:
+                return - (3.0/10.0)**0.5
+            elif m1 == -1 and m2 == 2 and j == 2:
+                return (3.0/7.0)**0.5
+            elif m1 == -1 and m2 == 2 and j == 1:
+                return - (1.0/5.0)**0.5
+            else:
+                return 0
+        elif m == 0:
+            if m1 == 2 and m2 == -2 and j == 4:
+                return (1.0/70.0)**0.5
+            elif m1 == 2 and m2 == -2 and j == 3:
+                return (1.0/10.0)**0.5
+            elif m1 == 2 and m2 == -2 and j == 2:
+                return (2.0/7.0)**0.5
+            elif m1 == 2 and m2 == -2 and j == 1:
+                return (2.0/5.0)**0.5
+            elif m1 == 2 and m2 == -2 and j == 0:
+                return (1.0/5.0)**0.5
+            elif m1 == 1 and m2 == -1 and j == 4:
+                return (8.0/35.0)**0.5
+            elif m1 == 1 and m2 == -1 and j == 3:
+                return (2.0/5.0)**0.5
+            elif m1 == 1 and m2 == -1 and j == 2:
+                return (1.0/14.0)**0.5
+            elif m1 == 1 and m2 == -1 and j == 1:
+                return -(1.0/10.0)**0.5
+            elif m1 == 1 and m2 == -1 and j == 0:
+                return -(1.0/5.0)**0.5
+            elif m1 == 0 and m2 == 0 and j == 4:
+                return (18.0/35.0)**0.5
+            elif m1 == 0 and m2 == 0 and j == 3:
+                return 0
+            elif m1 == 0 and m2 == 0 and j == 2:
+                return -(2.0/7.0)**0.5
+            elif m1 == 0 and m2 == 0 and j == 1:
+                return 0
+            elif m1 == 0 and m2 == 0 and j == 0:
+                return (1.0/5.0)**0.5
+            elif m1 == -1 and m2 == 1 and j == 4:
+                return (8.0/35.0)**0.5
+            elif m1 == -1 and m2 == 1 and j == 3:
+                return -(2.0/5.0)**0.5
+            elif m1 == -1 and m2 == 1 and j == 2:
+                return (1.0/14.0)**0.5
+            elif m1 == -1 and m2 == 1 and j == 1:
+                return (1.0/10.0)**0.5
+            elif m1 == -1 and m2 == 1 and j == 0:
+                return -(1.0/5.0)**0.5
+            elif m1 == -2 and m2 == 2 and j == 4:
+                return (1.0/70.0)**0.5
+            elif m1 == -2 and m2 == 2 and j == 3:
+                return -(1.0/10.0)**0.5
+            elif m1 == -2 and m2 == 2 and j == 2:
+                return (2.0/7.0)**0.5
+            elif m1 == -2 and m2 == 2 and j == 1:
+                return -(2.0/5.0)**0.5
+            elif m1 == -2 and m2 == 2 and j == 0:
+                return (1.0/5.0)**0.5
+            else:
+                return 0
+
+    return 0
 
 ## potential calculation
 # calculate int rpsi1(r1)*Ylm(t1, p1)*rpsi1(r1)*Ylm(t1, p1)/|r1-r2| r^2 sin t1 dt1 dp1 dr1
@@ -119,7 +357,7 @@ def CG(j1, j2, m1, m2, j, m):
 def getIntegrandH(r, z1, t1, p1, z2, t2, p2, phi1):
     return (r[z1]**2)*(phi1.rpsi[z1]**2)*(Y(phi1.l, phi1.m, t1, p1)**2)*(np.sin(t1))/np.sqrt((r[z1]*np.sin(t1)*np.cos(p1) - r[z2]*np.sin(t2)*np.cos(p2))**2 + (r[z1]*np.sin(t1)*np.sin(p1) - r[z2]*np.sin(t2)*np.sin(p2))**2 + (r[z1]*np.cos(t1) - r[z2]*np.cos(t2))**2)
 
-def getPotentialHMC(r, phiList, iOrb):
+def getPotentialHMC(r, phiList, iOrb, xOrb):
     Vd = np.zeros(len(r), dtype=np.float64)
     # integrate on r1[0, len(r)], p1[0, 2pi], t1[0, pi]
     for z2 in range(0, len(r)):
@@ -138,7 +376,7 @@ def getPotentialHMC(r, phiList, iOrb):
             t2 = random.random()*np.pi
             p1 = random.random()*2*np.pi
             p2 = random.random()*2*np.pi
-            Vd[z2] += np.pi*2*np.pi*np.pi*0.5*1.0/(np.cos(x1)**2)*getIntegrandH(r, z1, t1, p1, z2, t2, p2, phiList[iOrb])/float(Ntot)
+            Vd[z2] += np.pi*2*np.pi*np.pi*0.5*1.0/(np.cos(x1)**2)*getIntegrandH(r, z1, t1, p1, z2, t2, p2, phiList[iOrb])*Y(phiList[xOrb].l, phiList[xOrb].m, t2, p2)*2*np.pi*np.pi*np.sin(t2)/(4*np.pi)/float(Ntot)
     return Vd
 
 ## potential calculation
@@ -165,17 +403,17 @@ def getPotentialXCMC(r, phiList, iOrb, jOrb):
             t2 = random.random()*np.pi
             p1 = random.random()*2*np.pi
             p2 = random.random()*2*np.pi
-            Vex[z2] += np.pi*2*np.pi*np.pi*0.5*1.0/(np.cos(x1)**2)*getIntegrandXC(r, z1, t1, p1, z2, t2, p2, phiList[iOrb], phiList[jOrb])/float(Ntot)
+            Vex[z2] += np.pi*2*np.pi*np.pi*0.5*1.0/(np.cos(x1)**2)*getIntegrandXC(r, z1, t1, p1, z2, t2, p2, phiList[iOrb], phiList[jOrb])*Y(phiList[iOrb].l, phiList[iOrb].m, t2, p2)*2*np.pi*np.pi*np.sin(t2)/(4*np.pi)/float(Ntot)
     return Vex
 
 ## potential calculation
-def getPotentialH(r, phiList):
+def getPotentialH(r, phiList, xOrb):
     totalVd = np.zeros(len(r), dtype=np.float64)
     for iOrb in phiList.keys():
         # for p, d and f states, use the MC integration
         # we cannot factorize the spherical harmonics then
         if phiList[iOrb].l != 0:
-            totalVd += getPotentialHMC(r, phiList, iOrb)
+            totalVd += getPotentialHMC(r, phiList, iOrb, xOrb)
             continue
         # otherwise, we can use Gauss' law
         # to integrate rho^2(r)/|r-r'| dr, which is similar to a central Coulomb potential
@@ -356,7 +594,7 @@ def calculateE0(r, listPhi, vd, vxc):
                 if z < len(r)-1:
                     dr = r[z+1] - r[z]
                 # should have 4*pi*Y^2, but for s orbitals Y^2 = 1/4pi and int dOmega = 4 pi
-                J += (vd[z]*listPhi[iOrb].rpsi[z]**2)*(r[z]**2)*dr
+                J += (vd[iOrb][z]*listPhi[iOrb].rpsi[z]**2)*(r[z]**2)*dr
 
         # for p, d, etc integrate J and K with MC
         for jOrb in listPhi.keys():
@@ -385,77 +623,97 @@ def calculateE0(r, listPhi, vd, vxc):
     return [E0, sumEV, J, K, dE0]
 
 ## potential calculation
-# calculate int rpsi1(r1)*Ylm(t1, p1)*rpsi1(r1)*Ylm(t1, p1)/|r1-r2| r^2 sin t1 dt1 dp1 dr1
-# 1/|r1 - r2| = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1) rs^l/rb^(l+1) Ylm(t1, p1) Ylm(t2, p2)
-# int rpsi(r1)^2 Ylm(t1, p1)^2/|r1 - r2| r1^2 dOmega1 dr1
-# = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1)   (int rpsi(r1)^2 rs^l/rb^(l+1) r1^2 dr1)   (int Ylm(t1, p1)^2 Ylm(t1, p1) Ylm(t2, p2) dOmega1)
-# int Ylm^3(t1, p1) dOmega1 = ... (A4.40)
-#                           = (-1)^m sqrt( (2l+1)*(2l+1) / (4 pi (2l+1)) ) <ll00|l0> <llmm|l -m>
-# = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1)   (int rpsi(r1)^2 rs^l/rb^(l+1) r1^2 dr1) (-1)^m sqrt( (2l+1)*(2l+1) / (4 pi (2l+1)) ) <ll00|l0> <llmm|l -m> Ylm(t2, p2)
-# we integrate out the full equation after multiplying it by the spherical harmonic
-# of that orbital, which is equivalent to multiplying it by one, dut to the orthonormality conditions
-# but this term will create a factor of int Ylm(t2,p2) * Ykn(t2,p2) * Ykn(t2, p2) dOmega
-# where k, n are l and m for this orbital
-# it can be calculated using (A4.40) from Joachaim again
-def getPotentialHAna(r, phiList):
+# term is:
+# V = int_Oa int_Ob int_ra rpsi1(ra) rpsi2(ra) Yl1m1(Oa) Yl2m2(Oa)/|ra-rb| ra^2 dOa dra Ylkmk(Ob) Ylkmk(Ob) dOb
+# with 1 = 2 -> iOrb
+# and k -> xOrb
+# 1/|ra - rb| = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1) r<^l/r>^(l+1) Ylm(Oa) Ylm(Ob)
+# V = \sum_ly \sum_my \sum_l=0^inf \sum_m=-l^l ( int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra ) (int_Oa Yl1m1(Oa) Yl2m2(Oa) Y*lm(Oa) dOa) (int Ylm(Ob) Ylkmk(Ob)  Y*lymy(Ob) dOb)
+# beta(rb, l) = int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra
+# T1 = int_Oa Yl1m1(Oa) Yl2m2(Oa) Y*lm(Oa) dOa
+# T2 = int_Ob Ylkmk(Ob) Y*lymy(Ob) Ylm(Ob) dOb
+# V = \sum_mn \sum_l=0^inf beta(rb, l) T1(l, m) T2(l, m)
+# m = m1 + m2
+#
+# T1 = (-1)**m*(-1)**my*np.sqrt((2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)))*CG(l1, l2, 0, 0, l, 0)*CG(l1, l2, m1, m2, l, -(-m))
+# T2 = (-1)**my*np.sqrt((2*lk+1)*(2*lk+1)/(4*np.pi*(2*l+1)))*CG(lk, lk, 0, 0, l, 0)*CG(lk, ly, mk, my, l, -m)
+# T2' = Ylkmk(Ob) Ylm(Ob)
+# T2' = (lx, mx) np.sqrt((2*l+1)/(4*np.pi))*CG(lx,l,0,0,lx,0)*CG(lx,l,0,0,lx,mx)
+#
+def getPotentialHAna(r, phiList, xOrb):
     totalVd = np.zeros(len(r), dtype=np.float64)
-    lmax = 20
+    #lk = phiList[kOrb].l
+    #mk = phiList[kOrb].m
     for iOrb in phiList.keys():
         Vd = np.zeros(len(r), dtype=np.float64)
+        l1 = phiList[iOrb].l
+        m1 = phiList[iOrb].m
+        
+        lx = phiList[xOrb].l
+        mx = phiList[xOrb].m
+
+        nMTot = 2*l1+1
+
         for z in range(0, len(r)):
             r2 = r[z]
-            for l in range(0, lmax):
-                C = 0
-                # integrate in r1 with r2 fixed
-                for y in range(0, len(r)):
-                    r1 = r[y]
-                    dr = 0
-                    if y >= 1:
-                        dr = r[y] - r[y-1]
-                    else:
-                        dr = r[y]
-                    rs = r1
-                    rb = r2
-                    if rb < rs:
-                        rs = r2
-                        rb = r1
-                    C += phiList[iOrb].rpsi[y]**2*(rs**l)/(rb**(l+1))*(r1**2)*dr
-                K = 0
-                l1 = phiList[iOrb].l
-                m1 = phiList[iOrb].m
-                for m in range(-l, l+1):
-                    K += 4*np.pi/(2*l+1)*(-1.0)**float(m)*np.sqrt( (2*l+1)/(4*np.pi) )* CG(l, l, 0, 0, l, 0)*CG(l, l, m, m, l, -m)*((-1.0)**float(m)*np.sqrt( (2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)) )* CG(l1, l1, 0, 0, l, 0)*CG(l1, l1, m1, m1, l, -m))
-                C *= K
-                Vd[z] += C
+            l = 0
+            beta = 0
+            # integrate in r1 with r2 fixed
+            for y in range(0, len(r)):
+                r1 = r[y]
+                dr = 0
+                if y >= 1:
+                    dr = r[y] - r[y-1]
+                else:
+                    dr = r[y]
+                rs = r1
+                rb = r2
+                if rb < rs:
+                    rs = r2
+                    rb = r1
+                beta += 1.0/float(nMTot)*(2*l1+1)*phiList[iOrb].rpsi[y]**2/rb*(r1**2)*dr
+            Vd[z] += beta
         totalVd += Vd
     return totalVd
 
 
 ## potential calculation
-# calculate int rpsi1(r1)*Yl1m1(t1, p1)*rpsi2(r1)*Yl2m2(t1, p1)/|r1-r2| r^2 sin t1 dt1 dp1 dr1
-# 1/|r1 - r2| = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1) rs^l/rb^(l+1) Ylm(t1, p1) Ylm(t2, p2)
-# int rpsi1(r1) rpsi2(r1) Yl1m1(t1, p1) Yl2m2(t1, p1)/|r1 - r2| r1^2 dOmega1 dr1
-# = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1)   (int rpsi1(r1) rpsi2(r1) rs^l/rb^(l+1) r1^2 dr1)   (int Yl1m1(t1, p1) Yl2m2(t1, p1) Ylm(t1, p1) Ylm(t2, p2) dOmega1)
-# int Yl1m1(t1, p1) Yl2m2(t1, p1) Ylm(t1, p1) dOmega1 = ... (A4.40)
-#                           = (-1)^m sqrt( (2l1+1)*(2l2+1) / (4 pi (2l+1)) ) <l1l200|l0> <l1l2m1m2|l -m>
-# = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1)   (int rpsi(r1) rpsi2(r1) rs^l/rb^(l+1) r1^2 dr1) (-1)^m sqrt( (2l1+1)*(2l2+1) / (4 pi (2l+1)) ) <l1l200|l0> <l1l2m1m2|l -m> Ylm(t2, p2)
-# we integrate out the full equation after multiplying it by the spherical harmonic
-# of that orbital, which is equivalent to multiplying it by one, dut to the orthonormality conditions
-# but this term will create a factor of int Ylm(t2,p2) * Ykn(t2,p2) * Ykn(t2, p2) dOmega
-# where k, n are l and m for this orbital
-# it can be calculated using (A4.40) from Joachaim again
+# term is:
+# V = int_Oa int_Ob int_ra rpsi1(ra) rpsi2(ra) Yl1m1(Oa) Yl2m2(Oa)/|ra-rb| ra^2 dOa dra Ylxmx(Ob) Yl1mn(Ob) dOb
+# with 1 -> iOrb
+# with 2 -> jOrb
+# and x -> jOrb
+# 1/|ra - rb| = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1) r<^l/r>^(l+1) Y*lm(Oa) Ylm(Ob)
+# V = \sum_l=0^inf \sum_m=-l^l ( int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra ) (int_Oa Yl1m1(Oa) Yl2m2(Oa) Ylm(Oa) dOa) (int Ylm(Ob) Ylkmk^2(Ob) dOb)
+# beta(rb, l) = int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra
+# T1 = int_Oa Yl1m1(Oa) Yl2m2(Oa) Y*lm(Oa) dOa
+# T2 = int_Ob Ylxmx(Ob) Y*lymy(Ob) Ylm(Ob) dOb
+# V = \sum_l=0^inf \sum_m=-l^l beta(rb, l) T1(l, m) T2(l, m)
+#
+# T1 = (-1)**m (-1)**m np.sqrt((2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)))*CG(l1, l2, 0, 0, l, 0)*CG(l1, l2, m1, m2, l, -(-m))
+# T2 = (-1)**m (-1)**my np.sqrt((2*lx+1)*(2*l1+1)/(4*np.pi*(2*l+1)))*CG(lx, l1, 0, 0, l, 0)*CG(lx, ly, mx, -my, l, -m)
+#
+# -m = 2mk = m1+m2 => zero except if m = -2mk = -m1 - m2
 def getPotentialXAna(r, phiList, iOrb):
     totalVx = {}
-    lmax = 20
     for jOrb in phiList.keys():
         if ('+' in jOrb and '-' in iOrb) or ('-' in jOrb and '+' in iOrb):
               continue
         totalVx[jOrb] = np.zeros(len(r), dtype=np.float64)
         Vex = np.zeros(len(r), dtype=np.float64)
+        lx = phiList[jOrb].l
+        mx = phiList[jOrb].m
+        l1 = phiList[iOrb].l
+        m1 = phiList[iOrb].m
+        l2 = phiList[jOrb].l
+        m2 = phiList[jOrb].m
+
+        nMTot = 2*l2+1
+
         for z in range(0, len(r)):
             r2 = r[z]
-            for l in range(0, lmax):
-                C = 0
+            for l in range(abs(l1-l2), l1+l2+1):
+                beta = 0
                 # integrate in r1 with r2 fixed
                 for y in range(0, len(r)):
                     r1 = r[y]
@@ -469,16 +727,8 @@ def getPotentialXAna(r, phiList, iOrb):
                     if rb < rs:
                         rs = r2
                         rb = r1
-                    C += phiList[iOrb].rpsi[y]*phiList[jOrb].rpsi[y]*(rs**l)/(rb**(l+1))*(r1**2)*dr
-                K = 0
-                l1 = phiList[iOrb].l
-                l2 = phiList[jOrb].l
-                m1 = phiList[iOrb].m
-                m2 = phiList[jOrb].m
-                for m in range(-l, l+1):
-                    K += 4*np.pi/(2*l+1)*(-1.0)**float(m)*np.sqrt( (2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)) )* CG(l1, l2, 0, 0, l, 0)*CG(l1, l2, m1, m2, l, -m)*((-1.0)**float(m)*np.sqrt( (2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)) )* CG(l1, l1, 0, 0, l, 0)*CG(l1, l1, m1, m1, l, -m))
-                C *= K
-                Vex[z] += C
+                    beta += phiList[iOrb].rpsi[y]*phiList[jOrb].rpsi[y]*(rs**l)/(rb**(l+1))*r1**2*dr
+                Vex[z] += 1.0/float(nMTot)*(2*l2+1)/(2*l+1)*CG(l1, l2, 0, 0, l, 0)**2*beta
         totalVx[jOrb] += Vex
     return totalVx
 
@@ -514,7 +764,7 @@ def getLinSyst(listPhi, r, pot, vd, vxc):
     
             # calculate the extra term as \sum_j psi_j Vx_j
             # these are the linear terms due to the remainder of the potentials
-            pot_full_effective = pot + vd # this multiplies the current phi[iOrb]
+            pot_full_effective = pot + vd[iOrb] # this multiplies the current phi[iOrb]
             if iOrb in vxc[iOrb]:
                 pot_full_effective -= vxc[iOrb][iOrb]
             potIndep = np.zeros(len(r), dtype = np.float64)
@@ -675,13 +925,13 @@ def savePlotInFile(fname, r, pot, legend, ylabel = '', yrange = [-5,5]):
         f.write("end\n")
     f.close()
 
-Z = 6
+Z = 5
 
 xmin = np.log(1e-4)
 dx = 1e-1/Z
 r = init(dx, Z*150, xmin)
 
-useMC = False
+useMC = True
 
 listPhi = {}
 # create objects to hold energy and wave functions of each Hartree-Fock equation
@@ -693,7 +943,7 @@ listPhi['1s1-'] = phi(1, 0, 0, -Z**2/(1.0**2)*0.5)
 listPhi['2s1+'] = phi(2, 0, 0, -Z**2/(2.0**2)*0.5)
 listPhi['2s1-'] = phi(2, 0, 0, -Z**2/(2.0**2)*0.5)
 listPhi['2p1+'] = phi(2, 1, 0, -Z**2/(2.0**2)*0.5)
-listPhi['2p2+'] = phi(2, 1, -1, -Z**2/(2.0**2)*0.5)
+#listPhi['2p2+'] = phi(2, 1, 0, -Z**2/(2.0**2)*0.5)
 
 Nwait = 4*len(listPhi)
 
@@ -717,7 +967,7 @@ for iOrb in listPhi.keys():
 
 Nscf = 1000
 
-vd_last = np.zeros(len(r), dtype = np.float64)
+vd_last = {}
 vxc_last = {}
 gamma_v = 0.3
 
@@ -731,13 +981,16 @@ for iSCF in range(0, Nscf):
         listPhi[iOrb].wait = 0
 
     if iSCF == 0:
-        vd = np.zeros(len(r), dtype = np.float64)
-        vd_last = vd[:]
         vxc = {}
+        vd = {}
         for iOrb in sorted(listPhi.keys()):
             nOrb = phiToInt[iOrb]
+            vd[iOrb] = {}
+            vd_last[iOrb] = {}
             vxc[iOrb] = {}
             vxc_last[iOrb] = {}
+            vd[iOrb] = np.zeros(len(r), dtype = np.float64)
+            vd_last[iOrb] = vd[iOrb]
             for jOrb in sorted(listPhi.keys()):
                 vxc[iOrb][jOrb] = np.zeros(len(r), dtype = np.float64)
                 vxc_last[iOrb][jOrb] = vxc[iOrb][jOrb]
@@ -745,18 +998,19 @@ for iSCF in range(0, Nscf):
         gamma_v_eff = gamma_v # *np.exp(-iSCF/20.0)
         if iSCF >= 20:
             gamma_v_eff = gamma_v # *np.exp(-1.0)
-        if useMC:
-            vd = vd_last*(1-gamma_v_eff) + getPotentialH(r, listPhi)*(gamma_v_eff)
-        else:
-            vd = vd_last*(1-gamma_v_eff) + getPotentialHAna(r, listPhi)*(gamma_v_eff)
-        vd_last = vd[:]
         vxc = {}
         vxc_new = {}
+        vd_new = {}
+        vd = {}
         for iOrb in sorted(listPhi.keys()):
             if useMC:
                 vxc_new[iOrb] = getPotentialX(r, listPhi, iOrb)
+                vd_new[iOrb] = getPotentialH(r, listPhi, iOrb)
             else:
                 vxc_new[iOrb] = getPotentialXAna(r, listPhi, iOrb)
+                vd_new[iOrb] = getPotentialHAna(r, listPhi, iOrb)
+            vd[iOrb] = vd_last[iOrb]*(1-gamma_v_eff) + vd_new[iOrb]*(gamma_v_eff)
+            vd_last[iOrb] = vd[iOrb]
             vxc[iOrb] = {}
             for jOrb in vxc_new[iOrb]:
                 vxc[iOrb][jOrb] = vxc_last[iOrb][jOrb]*(1-gamma_v_eff) + vxc_new[iOrb][jOrb]*(gamma_v_eff)
@@ -960,7 +1214,7 @@ for iSCF in range(0, Nscf):
             plt.clf()
             c = 0
             ymin = pot[idxlow]
-            l = [vd[0]]
+            l = [vd[iOrb][0]]
             for item in vxc[iOrb]:
                 l.append(vxc[iOrb][item][0])
             ymax = 1.3*np.amax(l)
@@ -969,8 +1223,8 @@ for iSCF in range(0, Nscf):
             vlist.append(pot)
             leg.append('Vnuc')
             c += 1
-            plt.plot(r[0:idx], vd[0:idx], col[c], label='Vd')
-            vlist.append(vd)
+            plt.plot(r[0:idx], vd[iOrb][0:idx], col[c], label='Vd')
+            vlist.append(vd[iOrb])
             leg.append('Vd')
             c += 1
             for item in vxc[iOrb]:
