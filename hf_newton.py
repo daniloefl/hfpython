@@ -978,7 +978,7 @@ def savePlotInFile(fname, r, pot, legend, ylabel = '', yrange = [-5,5]):
         f.write("end\n")
     f.close()
 
-Z = 5
+Z = 6
 
 xmin = np.log(1e-4)
 dx = 1e-1/Z
@@ -996,7 +996,7 @@ listPhi['1s1-'] = phi(1, 0, 0, -Z**2/(1.0**2)*0.5)
 listPhi['2s1+'] = phi(2, 0, 0, -Z**2/(2.0**2)*0.5)
 listPhi['2s1-'] = phi(2, 0, 0, -Z**2/(2.0**2)*0.5)
 listPhi['2p1+'] = phi(2, 1, 0, -Z**2/(2.0**2)*0.5)
-#listPhi['2p2+'] = phi(2, 1, 0, -Z**2/(2.0**2)*0.5)
+listPhi['2p2+'] = phi(2, 1, 1, -Z**2/(2.0**2)*0.5)
 
 Nwait = 4*len(listPhi)
 
@@ -1264,7 +1264,7 @@ for iSCF in range(0, Nscf):
             plt.clf()
             c = 0
             ymin = pot[idxlow]
-            l = [vd[iOrb][0]]
+            l = [vd[0]]
             for item in vxc[iOrb]:
                 l.append(vxc[iOrb][item][0])
             ymax = 1.3*np.amax(l)
@@ -1273,8 +1273,8 @@ for iSCF in range(0, Nscf):
             vlist.append(pot)
             leg.append('Vnuc')
             c += 1
-            plt.plot(r[0:idx], vd[iOrb][0:idx], col[c], label='Vd')
-            vlist.append(vd[iOrb])
+            plt.plot(r[0:idx], vd[0:idx], col[c], label='Vd')
+            vlist.append(vd)
             leg.append('Vd')
             c += 1
             for item in vxc[iOrb]:
