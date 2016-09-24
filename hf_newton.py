@@ -675,9 +675,10 @@ def getPotentialHAna(r, phiList):
                         beta += 4*np.pi/(2*l+1)*phiList[iOrb].rpsi[y]**2*rs**l/(rb**(l+1))*(r1**2)*dr
                     T = 0
                     for m in range(-l, l+1):
-                        # T1 = int Yl1m1 Yl1m1 Y*lm = (-1)**m int Yl1m1 Yl1m1 Yl(-m)
-                        # T1 = (-1)**m*(-1)**m*np.sqrt((2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)))*CG(l1,l1,0,0,l,0)*CG(l1,l1,m1,m1,l,-(-m))
-                        T1 = np.sqrt((2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)))*CG(l1, l1, 0, 0, l, 0)*CG(l1, l1, m1, m1, l, -(-m))
+                        # T1 = int Y*l1m1 Yl1m1 Y*lm = (-1)**m int Y*l1m1 Yl1m1 Yl(-m)
+                        # T1 = (-1)**m*(-1)**m int Yl1(-m1) Yl1m1 Yl(-m)
+                        # T1 = (-1)**m*(-1)**m*(-1)**m*np.sqrt((2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)))*CG(l1,l1,0,0,l,0)*CG(l1,l1,-m1,m1,l,-(-m))
+                        T1 = (-1)**m*np.sqrt((2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)))*CG(l1, l1, 0, 0, l, 0)*CG(l1, l1, -m1, m1, l, -(-m))
                         # just average effect in angles of Ylm by itself
                         # average of Ylm is zero except for l = m = 0
                         T2 = 0
@@ -691,13 +692,13 @@ def getPotentialHAna(r, phiList):
 
 ## potential calculation
 # term is:
-# V = int_Oa int_Ob int_ra rpsi1(ra) rpsi2(ra) Yl1m1(Oa) Yl2m2(Oa)/|ra-rb| ra^2 dOa dra dOb / (4 pi)
+# V = int_Oa int_Ob int_ra rpsi1(ra) rpsi2(ra) Y*l1m1(Oa) Yl2m2(Oa)/|ra-rb| ra^2 dOa dra dOb / (4 pi)
 # with 1 -> iOrb
 # with 2 -> jOrb
 # 1/|ra - rb| = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1) r<^l/r>^(l+1) Y*lm(Oa) Ylm(Ob)
 # V = \sum_l=0^inf \sum_m=-l^l ( int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra ) (int_Oa Yl1m1(Oa) Yl2m2(Oa) Y*lm(Oa) dOa) (int Ylm(Ob) dOb) / (4*pi)
 # beta(rb, l) = int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra
-# T1 = int_Oa Yl1m1(Oa) Yl2m2(Oa) Y*lm(Oa) dOa
+# T1 = int_Oa Y*l1m1(Oa) Yl2m2(Oa) Y*lm(Oa) dOa
 # T2 = int_Ob Ylm(Ob) dOb
 #
 #
@@ -773,9 +774,10 @@ def getPotentialXAna(r, phiList, iOrb):
                         beta += 4*np.pi/(2*l+1)*phiList[iOrb].rpsi[y]*phiList[jOrb].rpsi[y]*rs**l/(rb**(l+1))*(r1**2)*dr
                     T = 0
                     for m in range(-l, l+1):
-                        # T1 = int Yl1m1 Yl2m2 Y*lm = (-1)**m int Yl1m1 Yl2m2 Yl(-m)
-                        # T1 = (-1)**m*(-1)**m*np.sqrt((2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)))*CG(l1,l2,0,0,l,0)*CG(l1,l2,m1,m2,l,-(-m))
-                        T1 = np.sqrt((2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)))*CG(l1, l2, 0, 0, l, 0)*CG(l1, l2, m1, m2, l, -(-m))
+                        # T1 = int Y*l1m1 Yl2m2 Y*lm = (-1)**m int Y*l1m1 Yl2m2 Yl(-m)
+                        # T1 = (-1)**m*(-1)**m int Yl1(-m1) Yl2m2 Yl(-m)
+                        # T1 = (-1)**m*(-1)**m*(-1)**m*np.sqrt((2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)))*CG(l1,l2,0,0,l,0)*CG(l1,l2,-m1,m2,l,-(-m))
+                        T1 = (-1)**m*np.sqrt((2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)))*CG(l1, l2, 0, 0, l, 0)*CG(l1, l2, -m1, m2, l, -(-m))
                         # just average effect in angles of Ylm by itself
                         T2 = 0
                         if l == 0 and m == 0:
