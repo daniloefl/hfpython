@@ -569,7 +569,7 @@ def calculateE0(r, listPhi, vd, vxc):
                 if z < len(r)-1:
                     dr = r[z+1] - r[z]
                 # should have 4*pi*Y^2, but for s orbitals Y^2 = 1/4pi and int dOmega = 4 pi
-                J += (vd[iOrb][z]*listPhi[iOrb].rpsi[z]**2)*(r[z]**2)*dr
+                J += (vd[z]*listPhi[iOrb].rpsi[z]**2)*(r[z]**2)*dr
 
         # for p, d, etc integrate J and K with MC
         for jOrb in listPhi.keys():
