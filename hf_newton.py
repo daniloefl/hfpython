@@ -678,7 +678,7 @@ def getPotentialHAna(r, phiList):
                         # T1 = int Y*l1m1 Yl1m1 Y*lm = (-1)**m int Y*l1m1 Yl1m1 Yl(-m)
                         # T1 = (-1)**m*(-1)**m int Yl1(-m1) Yl1m1 Yl(-m)
                         # T1 = (-1)**m*(-1)**m*(-1)**m*np.sqrt((2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)))*CG(l1,l1,0,0,l,0)*CG(l1,l1,-m1,m1,l,-(-m))
-                        T1 = (-1)**(-m1)*np.sqrt((2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)))*CG(l1, l1, 0, 0, l, 0)*CG(l1, l1, -m1, m1, l, -(-m))
+                        T1 = (-1)**(m1)*np.sqrt((2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)))*CG(l1, l1, 0, 0, l, 0)*CG(l1, l1, -m1, m1, l, -(-m))
                         # just average effect in angles of Ylm by itself
                         # average of Ylm is zero except for l = m = 0
                         T2 = 0
@@ -777,7 +777,7 @@ def getPotentialXAna(r, phiList, iOrb):
                         # T1 = int Y*l1m1 Yl2m2 Y*lm = (-1)**m int Y*l1m1 Yl2m2 Yl(-m)
                         # T1 = (-1)**m*(-1)**m int Yl1(-m1) Yl2m2 Yl(-m)
                         # T1 = (-1)**m*(-1)**m*(-1)**m*np.sqrt((2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)))*CG(l1,l2,0,0,l,0)*CG(l1,l2,-m1,m2,l,-(-m))
-                        T1 = (-1)**(-m1)*np.sqrt((2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)))*CG(l1, l2, 0, 0, l, 0)*CG(l1, l2, -m1, m2, l, -(-m))
+                        T1 = (-1)**(m1)*np.sqrt((2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)))*CG(l1, l2, 0, 0, l, 0)*CG(l1, l2, -m1, m2, l, -(-m))
                         # just average effect in angles of Ylm by itself
                         T2 = 0
                         if l == 0 and m == 0:
