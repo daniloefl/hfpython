@@ -936,6 +936,26 @@ class phi:
                 self.rpsi[i] /= parity*np.sqrt(n)
         if changeInPlace:
             self.psi = self.rpsi[:]
+    def toFile(self, r, name, fname):
+        fout = open(fname, "w")
+        fout.write("# name %s\n" %(name))
+        fout.write("# n    %d\n" %(self.n))
+        fout.write("# l    %d\n" %(self.l))
+        fout.write("# m    %d\n" %(self.m))
+        fout.write("# E    %.16f\n" %(self.E))
+        for i in range(0, len(r)):
+            fout.write("%.16f     %.16f\n" % (r[i], self.rpsi[i]))
+        fout.close()
+
+def writePotential(r, V, name, typ, forWF, actsOn, fname):
+    fout = open(fname, "w")
+    fout.write("# name   %s\n" %(name))
+    fout.write("# type   %s\n" %(typ))
+    fout.write("# forWF  %s\n" %(forWF))
+    fout.write("# actsOn %s\n" %(actsOn))
+    for i in range(0, len(r)):
+        fout.write("%.16f     %.16f\n" % (r[i], V[i]))
+    fout.close()
 
 def savePlotInFile(fname, r, pot, legend, ylabel = '', yrange = [-5,5]):
     f = open(fname, 'w')
@@ -1309,4 +1329,13 @@ for iSCF in range(0, Nscf):
     else:
         print bcolors.WARNING + "(SCF it. %d ends) E0 = %.14f eV +/- %.14f, dE0/E0 = %.14f. \sum e = %.14f eV. J = %.14f eV. K = %.14f eV." % (iSCF, E0*eV, dE0*eV, (1 - E0_old/E0), sumEV*eV, J*eV, K*eV) + '' + bcolors.ENDC
     E0_old = E0
+
+for item in listPhi:
+    listPhi[item].toFile(r, item, "rpsi_"+name+".dat")
+
+writePotential(r, pot, "nucleus", "nucleus", "all", "all", "pot_nuc.dat"):
+writePotential(r, vd,  "vd",      "hartree", "all", "all", "pot_vd.dat"):
+for item in vxc:
+    for acted in vxc[item]:
+        writePotential(r, vxc[item][acted],  "vxc", "exchange", item, acted, "pot_vxc_%s_%s.dat" % (item, acted)):
 
