@@ -330,7 +330,7 @@ def CG(j1, j2, m1, m2, j, m):
 def getIntegrandH(r, z1, t1, p1, z2, t2, p2, phi1):
     return (r[z1]**2)*(phi1.rpsi[z1]**2)*(Y(phi1.l, phi1.m, t1, p1)**2)*(np.sin(t1))/np.sqrt((r[z1]*np.sin(t1)*np.cos(p1) - r[z2]*np.sin(t2)*np.cos(p2))**2 + (r[z1]*np.sin(t1)*np.sin(p1) - r[z2]*np.sin(t2)*np.sin(p2))**2 + (r[z1]*np.cos(t1) - r[z2]*np.cos(t2))**2)
 
-def getPotentialHMC(r, phiList, iOrb, xOrb):
+def getPotentialHMC(r, phiList, iOrb):
     Vd = np.zeros(len(r), dtype=np.float64)
     # integrate on r1[0, len(r)], p1[0, 2pi], t1[0, pi]
     for z2 in range(0, len(r)):
@@ -349,7 +349,8 @@ def getPotentialHMC(r, phiList, iOrb, xOrb):
             t2 = random.random()*np.pi
             p1 = random.random()*2*np.pi
             p2 = random.random()*2*np.pi
-            Vd[z2] += np.pi*2*np.pi*np.pi*0.5*1.0/(np.cos(x1)**2)*getIntegrandH(r, z1, t1, p1, z2, t2, p2, phiList[iOrb])*Y(phiList[xOrb].l, phiList[xOrb].m, t2, p2)*2*np.pi*np.pi*np.sin(t2)/(4*np.pi)/float(Ntot)
+            #Vd[z2] += np.pi*2*np.pi*np.pi*0.5*1.0/(np.cos(x1)**2)*getIntegrandH(r, z1, t1, p1, z2, t2, p2, phiList[iOrb])*Y(phiList[xOrb].l, phiList[xOrb].m, t2, p2)*2*np.pi*np.pi*np.sin(t2)/(4*np.pi)/float(Ntot)
+            Vd[z2] += np.pi*2*np.pi*np.pi*0.5*1.0/(np.cos(x1)**2)*getIntegrandH(r, z1, t1, p1, z2, t2, p2, phiList[iOrb])*2*np.pi*np.pi*np.sin(t2)/(4*np.pi)/float(Ntot)
     return Vd
 
 ## potential calculation
@@ -376,17 +377,18 @@ def getPotentialXCMC(r, phiList, iOrb, jOrb):
             t2 = random.random()*np.pi
             p1 = random.random()*2*np.pi
             p2 = random.random()*2*np.pi
-            Vex[z2] += np.pi*2*np.pi*np.pi*0.5*1.0/(np.cos(x1)**2)*getIntegrandXC(r, z1, t1, p1, z2, t2, p2, phiList[iOrb], phiList[jOrb])*Y(phiList[iOrb].l, phiList[iOrb].m, t2, p2)*2*np.pi*np.pi*np.sin(t2)/(4*np.pi)/float(Ntot)
+            #Vex[z2] += np.pi*2*np.pi*np.pi*0.5*1.0/(np.cos(x1)**2)*getIntegrandXC(r, z1, t1, p1, z2, t2, p2, phiList[iOrb], phiList[jOrb])*Y(phiList[iOrb].l, phiList[iOrb].m, t2, p2)*2*np.pi*np.pi*np.sin(t2)/(4*np.pi)/float(Ntot)
+            Vex[z2] += np.pi*2*np.pi*np.pi*0.5*1.0/(np.cos(x1)**2)*getIntegrandXC(r, z1, t1, p1, z2, t2, p2, phiList[iOrb], phiList[jOrb])*2*np.pi*np.pi*np.sin(t2)/(4*np.pi)/float(Ntot)
     return Vex
 
 ## potential calculation
-def getPotentialH(r, phiList, xOrb):
+def getPotentialH(r, phiList):
     totalVd = np.zeros(len(r), dtype=np.float64)
     for iOrb in phiList.keys():
         # for p, d and f states, use the MC integration
         # we cannot factorize the spherical harmonics then
         if phiList[iOrb].l != 0:
-            totalVd += getPotentialHMC(r, phiList, iOrb, xOrb)
+            totalVd += getPotentialHMC(r, phiList, iOrb)
             continue
         # otherwise, we can use Gauss' law
         # to integrate rho^2(r)/|r-r'| dr, which is similar to a central Coulomb potential
@@ -492,7 +494,7 @@ def getJMC(r, phiList, iOrb, jOrb):
     J = 0
     J2 = 0
     print "Using MC integration to calculate J %s,%s" % (iOrb, jOrb)
-    Ntot = int(200000)
+    Ntot = int(400000)
     for N in range(0, Ntot):
         x1 = np.pi*0.5*random.random()
         r1 = np.tan(x1)
@@ -525,7 +527,7 @@ def getKMC(r, phiList, iOrb, jOrb):
     K = 0
     K2 = 0
     print "Using MC integration to calculate K %s,%s" % (iOrb, jOrb)
-    Ntot = int(200000)
+    Ntot = int(400000)
     for N in range(0, Ntot):
         x1 = np.pi*0.5*random.random()
         r1 = np.tan(x1)
@@ -595,109 +597,6 @@ def calculateE0(r, listPhi, vd, vxc):
     dE0 = np.sqrt(dE0)
     return [E0, sumEV, J, K, dE0]
 
-# use this to assume all sub-shells are complete
-# should be exact if all sub-shells are complete
-'''
-## potential calculation
-# term is:
-# V = int_Oa int_Ob int_ra rpsi1(ra) rpsi2(ra) Yl1m1(Oa) Yl2m2(Oa)/|ra-rb| ra^2 dOa dra Ylkmk(Ob) Ylkmk(Ob) dOb
-# with 1 = 2 -> iOrb
-# and k -> xOrb
-# 1/|ra - rb| = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1) r<^l/r>^(l+1) Ylm(Oa) Ylm(Ob)
-# V = \sum_l=0^inf \sum_m=-l^l ( int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra ) (int_Oa Yl1m1(Oa) Yl2m2(Oa) Y*lm(Oa) dOa) Ylm(Ob)
-# beta(rb, l) = int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra
-# T1 = int_Oa Yl1m1(Oa) Yl2m2(Oa) Y*lm(Oa) dOa
-# T2 = Ylm(Ob)
-# V = \sum_l=0^inf beta(rb, l) T1(l, m) T2(l, m)
-# assume we are in a filled shell and then we can factorize the sum of Ylm terms
-# in that case, the term is spherical
-def getPotentialHAna(r, phiList, xOrb):
-    totalVd = np.zeros(len(r), dtype=np.float64)
-    #lk = phiList[kOrb].l
-    #mk = phiList[kOrb].m
-    for iOrb in phiList.keys():
-        Vd = np.zeros(len(r), dtype=np.float64)
-        l1 = phiList[iOrb].l
-        m1 = phiList[iOrb].m
-        
-        lx = phiList[xOrb].l
-        mx = phiList[xOrb].m
-
-        nMTot = 2*l1+1
-
-        for z in range(0, len(r)):
-            r2 = r[z]
-            l = 0
-            beta = 0
-            # integrate in r1 with r2 fixed
-            for y in range(0, len(r)):
-                r1 = r[y]
-                dr = 0
-                if y >= 1:
-                    dr = r[y] - r[y-1]
-                else:
-                    dr = r[y]
-                rs = r1
-                rb = r2
-                if rb < rs:
-                    rs = r2
-                    rb = r1
-                beta += 1.0/float(nMTot)*(2*l1+1)*phiList[iOrb].rpsi[y]**2/rb*(r1**2)*dr
-            Vd[z] += beta
-        totalVd += Vd
-    return totalVd
-
-
-## potential calculation
-# term is:
-# V = int_Oa int_Ob int_ra rpsi1(ra) rpsi2(ra) Yl1m1(Oa) Yl2m2(Oa)/|ra-rb| ra^2 dOa dra Ylxmx(Ob) Yl1mn(Ob) dOb
-# with 1 -> iOrb
-# with 2 -> jOrb
-# and x -> jOrb
-# 1/|ra - rb| = \sum_l=0^inf \sum_m=-l^m=l 4 pi / (2l + 1) r<^l/r>^(l+1) Y*lm(Oa) Ylm(Ob)
-# V = \sum_l=0^inf \sum_m=-l^l ( int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra ) (int_Oa Yl1m1(Oa) Yl2m2(Oa) Ylm(Oa) dOa) (int Ylm(Ob) Ylkmk^2(Ob) dOb)
-# beta(rb, l) = int_ra 4 pi /(2l+1) rpsi1(ra) rpsi2(ra) r<^l/r>^(l+1) ra^2 dra
-# T1 = int_Oa Yl1m1(Oa) Yl2m2(Oa) Y*lm(Oa) dOa
-# T2 = Ylm(Ob)
-# V = \sum_l=0^inf \sum_m=-l^l beta(rb, l) T1(l, m) T2(l, m)
-def getPotentialXAna(r, phiList, iOrb):
-    totalVx = {}
-    for jOrb in phiList.keys():
-        if ('+' in jOrb and '-' in iOrb) or ('-' in jOrb and '+' in iOrb):
-              continue
-        totalVx[jOrb] = np.zeros(len(r), dtype=np.float64)
-        Vex = np.zeros(len(r), dtype=np.float64)
-        lx = phiList[jOrb].l
-        mx = phiList[jOrb].m
-        l1 = phiList[iOrb].l
-        m1 = phiList[iOrb].m
-        l2 = phiList[jOrb].l
-        m2 = phiList[jOrb].m
-
-        nMTot = 2*l2+1
-
-        for z in range(0, len(r)):
-            r2 = r[z]
-            for l in range(abs(l1-l2), l1+l2+1):
-                beta = 0
-                # integrate in r1 with r2 fixed
-                for y in range(0, len(r)):
-                    r1 = r[y]
-                    dr = 0
-                    if y >= 1:
-                        dr = r[y] - r[y-1]
-                    else:
-                        dr = r[y]
-                    rs = r1
-                    rb = r2
-                    if rb < rs:
-                        rs = r2
-                        rb = r1
-                    beta += phiList[iOrb].rpsi[y]*phiList[jOrb].rpsi[y]*(rs**l)/(rb**(l+1))*r1**2*dr
-                Vex[z] += 1.0/float(nMTot)*(2*l2+1)/(2*l+1)*CG(l1, l2, 0, 0, l, 0)**2*beta
-        totalVx[jOrb] += Vex
-    return totalVx
-'''
 
 # average out in angle
 ## potential calculation
@@ -719,18 +618,23 @@ def getPotentialXAna(r, phiList, iOrb):
 #
 # T2 = 1.0/(4*np.pi) int Ylm dOb
 #
-def getPotentialHAna(r, phiList, xOrb):
+def getPotentialHAna(r, phiList):
     totalVd = np.zeros(len(r), dtype=np.float64)
     for iOrb in phiList.keys():
         Vd = np.zeros(len(r), dtype=np.float64)
         l1 = phiList[iOrb].l
         m1 = phiList[iOrb].m
+        n1 = phiList[iOrb].n
         
-        lx = phiList[xOrb].l
-        mx = phiList[xOrb].m
+        #lx = phiList[xOrb].l
+        #mx = phiList[xOrb].m
 
-        lmax = 2
-        for l in range(0, lmax+1):
+        nThisOrb = 0
+        for yOrb in phiList.keys():
+            if phiList[yOrb].n == n1 and phiList[yOrb].l == l1:
+                nThisOrb += 1
+        if nThisOrb == 2*l1+1: # filled orbital, can calculate it exactly
+            nMTot = 2*l1+1
             for z in range(0, len(r)):
                 r2 = r[z]
                 beta = 0
@@ -747,19 +651,40 @@ def getPotentialHAna(r, phiList, xOrb):
                     if rb < rs:
                         rs = r2
                         rb = r1
-                    beta += 4*np.pi/(2*l+1)*phiList[iOrb].rpsi[y]**2*rs**l/(rb**(l+1))*(r1**2)*dr
-                T = 0
-                for m in range(-l, l+1):
-                    # T1 = int Yl1m1 Yl1m1 Y*lm = (-1)**m int Yl1m1 Yl1m1 Yl(-m)
-                    # T1 = (-1)**m*(-1)**m*np.sqrt((2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)))*CG(l1,l1,0,0,l,0)*CG(l1,l1,m1,m1,l,-(-m))
-                    T1 = (-1)**m*np.sqrt((2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)))*CG(l1, l1, 0, 0, l, 0)*CG(l1, l1, m1, m1, l, -m)
-                    # just average effect in angles of Ylm by itself
-                    # average of Ylm is zero except for l = m = 0
-                    T2 = 0
-                    if l == 0 and m == 0:
-                        T2 = 1.0/np.sqrt(4*np.pi)
-                    T += T1*T2
-                Vd[z] += beta*T
+                    beta += 1.0/float(nMTot)*(2*l1+1)*phiList[iOrb].rpsi[y]**2/rb*(r1**2)*dr
+                Vd[z] += beta
+        else: # not filled orbital, we can take an average over angles
+            lmax = 2
+            for l in range(0, lmax+1):
+                for z in range(0, len(r)):
+                    r2 = r[z]
+                    beta = 0
+                    # integrate in r1 with r2 fixed
+                    for y in range(0, len(r)):
+                        r1 = r[y]
+                        dr = 0
+                        if y >= 1:
+                            dr = r[y] - r[y-1]
+                        else:
+                            dr = r[y]
+                        rs = r1
+                        rb = r2
+                        if rb < rs:
+                            rs = r2
+                            rb = r1
+                        beta += 4*np.pi/(2*l+1)*phiList[iOrb].rpsi[y]**2*rs**l/(rb**(l+1))*(r1**2)*dr
+                    T = 0
+                    for m in range(-l, l+1):
+                        # T1 = int Yl1m1 Yl1m1 Y*lm = (-1)**m int Yl1m1 Yl1m1 Yl(-m)
+                        # T1 = (-1)**m*(-1)**m*np.sqrt((2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)))*CG(l1,l1,0,0,l,0)*CG(l1,l1,m1,m1,l,-(-m))
+                        T1 = np.sqrt((2*l1+1)*(2*l1+1)/(4*np.pi*(2*l+1)))*CG(l1, l1, 0, 0, l, 0)*CG(l1, l1, m1, m1, l, -(-m))
+                        # just average effect in angles of Ylm by itself
+                        # average of Ylm is zero except for l = m = 0
+                        T2 = 0
+                        if l == 0 and m == 0:
+                            T2 = 1.0/np.sqrt(4*np.pi)
+                        T += T1*T2
+                    Vd[z] += beta*T
         totalVd += Vd
     return totalVd
 
@@ -791,43 +716,72 @@ def getPotentialXAna(r, phiList, iOrb):
               continue
         totalVx[jOrb] = np.zeros(len(r), dtype=np.float64)
         Vex = np.zeros(len(r), dtype=np.float64)
-        lx = phiList[jOrb].l
-        mx = phiList[jOrb].m
+        #lx = phiList[jOrb].l
+        #mx = phiList[jOrb].m
         l1 = phiList[iOrb].l
         m1 = phiList[iOrb].m
+        n1 = phiList[iOrb].n
         l2 = phiList[jOrb].l
         m2 = phiList[jOrb].m
+        n2 = phiList[jOrb].n
 
-        lmax = 2
-        for l in range(0, lmax+1):
+        nThisOrb = 0
+        for yOrb in phiList.keys():
+            if phiList[yOrb].n == n2 and phiList[yOrb].l == l2:
+                nThisOrb += 1
+        if nThisOrb == 2*l2+1: # filled orbital, can calculate it exactly
+            nMTot = 2*l2+1
+
             for z in range(0, len(r)):
                 r2 = r[z]
-                beta = 0
-                # integrate in r1 with r2 fixed
-                for y in range(0, len(r)):
-                    r1 = r[y]
-                    dr = 0
-                    if y >= 1:
-                        dr = r[y] - r[y-1]
-                    else:
-                        dr = r[y]
-                    rs = r1
-                    rb = r2
-                    if rb < rs:
-                        rs = r2
-                        rb = r1
-                    beta += 4*np.pi/(2*l+1)*phiList[iOrb].rpsi[y]*phiList[jOrb].rpsi[y]*rs**l/(rb**(l+1))*(r1**2)*dr
-                T = 0
-                for m in range(-l, l+1):
-                    # T1 = int Yl1m1 Yl2m2 Y*lm = (-1)**m int Yl1m1 Yl2m2 Yl(-m)
-                    # T1 = (-1)**m*(-1)**m*np.sqrt((2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)))*CG(l1,l2,0,0,l,0)*CG(l1,l2,m1,m2,l,-(-m))
-                    T1 = np.sqrt((2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)))*CG(l1, l2, 0, 0, l, 0)*CG(l1, l2, m1, m2, l, -(-m))
-                    # just average effect in angles of Ylm by itself
-                    T2 = 0
-                    if l == 0 and m == 0:
-                        T2 = 1.0/np.sqrt(4*np.pi)
-                    T += T1*T2
-                Vex[z] += beta*T
+                for l in range(abs(l1-l2), l1+l2+1):
+                    beta = 0
+                    # integrate in r1 with r2 fixed
+                    for y in range(0, len(r)):
+                        r1 = r[y]
+                        dr = 0
+                        if y >= 1:
+                            dr = r[y] - r[y-1]
+                        else:
+                            dr = r[y]
+                        rs = r1
+                        rb = r2
+                        if rb < rs:
+                            rs = r2
+                            rb = r1
+                        beta += phiList[iOrb].rpsi[y]*phiList[jOrb].rpsi[y]*(rs**l)/(rb**(l+1))*r1**2*dr
+                    Vex[z] += 1.0/float(nMTot)*(2*l2+1)/(2*l+1)*CG(l1, l2, 0, 0, l, 0)**2*beta
+        else:
+            lmax = 2
+            for l in range(0, lmax+1):
+                for z in range(0, len(r)):
+                    r2 = r[z]
+                    beta = 0
+                    # integrate in r1 with r2 fixed
+                    for y in range(0, len(r)):
+                        r1 = r[y]
+                        dr = 0
+                        if y >= 1:
+                            dr = r[y] - r[y-1]
+                        else:
+                            dr = r[y]
+                        rs = r1
+                        rb = r2
+                        if rb < rs:
+                            rs = r2
+                            rb = r1
+                        beta += 4*np.pi/(2*l+1)*phiList[iOrb].rpsi[y]*phiList[jOrb].rpsi[y]*rs**l/(rb**(l+1))*(r1**2)*dr
+                    T = 0
+                    for m in range(-l, l+1):
+                        # T1 = int Yl1m1 Yl2m2 Y*lm = (-1)**m int Yl1m1 Yl2m2 Yl(-m)
+                        # T1 = (-1)**m*(-1)**m*np.sqrt((2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)))*CG(l1,l2,0,0,l,0)*CG(l1,l2,m1,m2,l,-(-m))
+                        T1 = np.sqrt((2*l1+1)*(2*l2+1)/(4*np.pi*(2*l+1)))*CG(l1, l2, 0, 0, l, 0)*CG(l1, l2, m1, m2, l, -(-m))
+                        # just average effect in angles of Ylm by itself
+                        T2 = 0
+                        if l == 0 and m == 0:
+                            T2 = 1.0/np.sqrt(4*np.pi)
+                        T += T1*T2
+                    Vex[z] += beta*T
         totalVx[jOrb] += Vex
     return totalVx
 
@@ -863,7 +817,7 @@ def getLinSyst(listPhi, r, pot, vd, vxc):
     
             # calculate the extra term as \sum_j psi_j Vx_j
             # these are the linear terms due to the remainder of the potentials
-            pot_full_effective = pot + vd[iOrb] # this multiplies the current phi[iOrb]
+            pot_full_effective = pot + vd # this multiplies the current phi[iOrb]
             if iOrb in vxc[iOrb]:
                 pot_full_effective -= vxc[iOrb][iOrb]
             potIndep = np.zeros(len(r), dtype = np.float64)
@@ -1030,7 +984,7 @@ xmin = np.log(1e-4)
 dx = 1e-1/Z
 r = init(dx, Z*150, xmin)
 
-useMC = True
+useMC = False
 
 listPhi = {}
 # create objects to hold energy and wave functions of each Hartree-Fock equation
@@ -1081,15 +1035,12 @@ for iSCF in range(0, Nscf):
 
     if iSCF == 0:
         vxc = {}
-        vd = {}
+        vd = np.zeros(len(r), dtype = np.float64)
+        vd_last = vd
         for iOrb in sorted(listPhi.keys()):
             nOrb = phiToInt[iOrb]
-            vd[iOrb] = {}
-            vd_last[iOrb] = {}
             vxc[iOrb] = {}
             vxc_last[iOrb] = {}
-            vd[iOrb] = np.zeros(len(r), dtype = np.float64)
-            vd_last[iOrb] = vd[iOrb]
             for jOrb in sorted(listPhi.keys()):
                 vxc[iOrb][jOrb] = np.zeros(len(r), dtype = np.float64)
                 vxc_last[iOrb][jOrb] = vxc[iOrb][jOrb]
@@ -1099,17 +1050,17 @@ for iSCF in range(0, Nscf):
             gamma_v_eff = gamma_v # *np.exp(-1.0)
         vxc = {}
         vxc_new = {}
-        vd_new = {}
-        vd = {}
+        if useMC:
+            vd_new = getPotentialH(r, listPhi)
+        else:
+            vd_new = getPotentialHAna(r, listPhi)
+        vd = vd_last*(1-gamma_v_eff) + vd_new*(gamma_v_eff)
+        vd_last = vd
         for iOrb in sorted(listPhi.keys()):
             if useMC:
                 vxc_new[iOrb] = getPotentialX(r, listPhi, iOrb)
-                vd_new[iOrb] = getPotentialH(r, listPhi, iOrb)
             else:
                 vxc_new[iOrb] = getPotentialXAna(r, listPhi, iOrb)
-                vd_new[iOrb] = getPotentialHAna(r, listPhi, iOrb)
-            vd[iOrb] = vd_last[iOrb]*(1-gamma_v_eff) + vd_new[iOrb]*(gamma_v_eff)
-            vd_last[iOrb] = vd[iOrb]
             vxc[iOrb] = {}
             for jOrb in vxc_new[iOrb]:
                 vxc[iOrb][jOrb] = vxc_last[iOrb][jOrb]*(1-gamma_v_eff) + vxc_new[iOrb][jOrb]*(gamma_v_eff)
@@ -1350,7 +1301,7 @@ for iSCF in range(0, Nscf):
             break
 
     [E0, sumEV, J, K, dE0] = calculateE0(r, listPhi, vd, vxc)
-    if (np.fabs(1 - E0_old/E0) < 1e-4 and iSCF > 5) or abortIt:
+    if (np.fabs(1 - E0_old/E0) < 5e-4 and iSCF > 5) or abortIt:
         print bcolors.WARNING + "(SCF it. %d) Ground state energy changed by less than 1e-4 (by %.14f). E0 = %.14f eV +/- %.14f. \sum e = %.14f eV. J = %.14f eV. K = %.14f eV." % (iSCF, np.fabs(1 - E0_old/E0), E0*eV, dE0*eV, sumEV*eV, J*eV, K*eV) + '' + bcolors.ENDC
         break
     else:
