@@ -1058,7 +1058,7 @@ Nscf = 1000
 
 vd_last = {}
 vxc_last = {}
-gamma_v = 0.3
+gamma_v = 0.5
 
 abortIt = False
 E0_old = 0
@@ -1145,7 +1145,7 @@ for iSCF in range(0, Nscf):
                 #break
 
 
-        gamma = 0.3*scale_gamma
+        gamma = 0.5*scale_gamma
 
         no_old = {}
         for iOrb in listPhi:
@@ -1337,15 +1337,15 @@ for iSCF in range(0, Nscf):
             break
 
     [E0, sumEV, J, K, dE0] = calculateE0(r, listPhi, vd, vxc)
-    if (np.fabs(1 - E0_old/E0) < 5e-4 and iSCF > 5) or abortIt:
-        print bcolors.WARNING + "(SCF it. %d) Ground state energy changed by less than 1e-4 (by %.14f). E0 = %.14f eV +/- %.14f. \sum e = %.14f eV. J = %.14f eV. K = %.14f eV." % (iSCF, np.fabs(1 - E0_old/E0), E0*eV, dE0*eV, sumEV*eV, J*eV, K*eV) + '' + bcolors.ENDC
+    if (np.fabs(1 - E0_old/E0) < 1e-9 and iSCF > 5) or abortIt:
+        print bcolors.WARNING + "(SCF it. %d) Ground state energy changed by less than 1e-9 (by %.14f). E0 = %.14f eV +/- %.14f. \sum e = %.14f eV. J = %.14f eV. K = %.14f eV." % (iSCF, np.fabs(1 - E0_old/E0), E0*eV, dE0*eV, sumEV*eV, J*eV, K*eV) + '' + bcolors.ENDC
         break
     else:
         print bcolors.WARNING + "(SCF it. %d ends) E0 = %.14f eV +/- %.14f, dE0/E0 = %.14f. \sum e = %.14f eV. J = %.14f eV. K = %.14f eV." % (iSCF, E0*eV, dE0*eV, (1 - E0_old/E0), sumEV*eV, J*eV, K*eV) + '' + bcolors.ENDC
     E0_old = E0
 
 for item in listPhi:
-    listPhi[item].toFile(r, item, "rpsi_"+name+".dat")
+    listPhi[item].toFile(r, item, "rpsi_"+item+".dat")
 
 writePotential(r, pot, "nucleus", "nucleus", "all", "all", "pot_nuc.dat")
 writePotential(r, vd,  "vd",      "hartree", "all", "all", "pot_vd.dat")
