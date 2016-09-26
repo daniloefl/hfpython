@@ -385,6 +385,8 @@ def getPotentialXCMC(r, phiList, iOrb, jOrb):
 def getPotentialH(r, phiList):
     totalVd = np.zeros(len(r), dtype=np.float64)
     for iOrb in phiList.keys():
+        if listPhi[iOrb].virtual:
+            continue
         # for p, d and f states, use the MC integration
         # we cannot factorize the spherical harmonics then
         if phiList[iOrb].l != 0:
@@ -434,6 +436,8 @@ def getPotentialH(r, phiList):
 def getPotentialX(r, phiList, iOrb):
     totalVx = {}
     for jOrb in phiList.keys():
+        if listPhi[jOrb].virtual:
+            continue
         if ('+' in jOrb and '-' in iOrb) or ('-' in jOrb and '+' in iOrb):
               continue
         # for p, d and f states, use the MC integration
@@ -560,6 +564,9 @@ def calculateE0(r, listPhi, vd, vxc):
     K = 0
     JmK = 0
     for iOrb in listPhi.keys():
+        if listPhi[iOrb].virtual:
+            continue
+
         E0 += listPhi[iOrb].E
         sumEV += listPhi[iOrb].E
         # for the s orbitals, we can factor out the spherical harms.
@@ -621,6 +628,8 @@ def calculateE0(r, listPhi, vd, vxc):
 def getPotentialHAna(r, phiList):
     totalVd = np.zeros(len(r), dtype=np.float64)
     for iOrb in phiList.keys():
+        if phiList[iOrb].virtual:
+            continue
         Vd = np.zeros(len(r), dtype=np.float64)
         l1 = phiList[iOrb].l
         m1 = phiList[iOrb].m
@@ -713,6 +722,9 @@ def getPotentialHAna(r, phiList):
 def getPotentialXAna(r, phiList, iOrb):
     totalVx = {}
     for jOrb in phiList.keys():
+        if phiList[jOrb].virtual:
+            continue
+
         if ('+' in jOrb and '-' in iOrb) or ('-' in jOrb and '+' in iOrb):
               continue
         totalVx[jOrb] = np.zeros(len(r), dtype=np.float64)
@@ -910,7 +922,8 @@ class phi:
     Emax = 0.0
     Emin = -99.0
     wait = 2
-    def __init__(self, _n, _l, _m, _E):
+    virtual = False
+    def __init__(self, _n, _l, _m, _E, _virtual = False):
         self.n = _n
         self.l = _l
         self.m = _m
@@ -918,6 +931,7 @@ class phi:
         self.Emax = 0.0
         self.Emin = -99.0
         self.wait = 2
+        self.virtual = _virtual
 
     def toPsi(self, r, changeInPlace = False):
         n = 0
@@ -1000,7 +1014,7 @@ def savePlotInFile(fname, r, pot, legend, ylabel = '', yrange = [-5,5]):
         f.write("end\n")
     f.close()
 
-Z = 6
+Z = 5
 
 xmin = np.log(1e-4)
 dx = 1e-1/Z
@@ -1018,7 +1032,7 @@ listPhi['1s1-'] = phi(1, 0, 0, -Z**2/(1.0**2)*0.5)
 listPhi['2s1+'] = phi(2, 0, 0, -Z**2/(2.0**2)*0.5)
 listPhi['2s1-'] = phi(2, 0, 0, -Z**2/(2.0**2)*0.5)
 listPhi['2p1+'] = phi(2, 1, 0, -Z**2/(2.0**2)*0.5)
-listPhi['2p2+'] = phi(2, 1, 1, -Z**2/(2.0**2)*0.5)
+listPhi['2p2+'] = phi(2, 1, 1, -Z**2/(2.0**2)*0.5, True)
 
 Nwait = 4*len(listPhi)
 
@@ -1333,9 +1347,9 @@ for iSCF in range(0, Nscf):
 for item in listPhi:
     listPhi[item].toFile(r, item, "rpsi_"+name+".dat")
 
-writePotential(r, pot, "nucleus", "nucleus", "all", "all", "pot_nuc.dat"):
-writePotential(r, vd,  "vd",      "hartree", "all", "all", "pot_vd.dat"):
+writePotential(r, pot, "nucleus", "nucleus", "all", "all", "pot_nuc.dat")
+writePotential(r, vd,  "vd",      "hartree", "all", "all", "pot_vd.dat")
 for item in vxc:
     for acted in vxc[item]:
-        writePotential(r, vxc[item][acted],  "vxc", "exchange", item, acted, "pot_vxc_%s_%s.dat" % (item, acted)):
+        writePotential(r, vxc[item][acted],  "vxc", "exchange", item, acted, "pot_vxc_%s_%s.dat" % (item, acted))
 
