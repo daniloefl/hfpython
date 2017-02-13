@@ -145,6 +145,9 @@ def reflect(x, y):
 eps = 1e-5
 k = 2
 n = 0
+import sys
+if sys.argc >= 2:
+  n = int(sys.argv[1])
 Emax = 0
 Emin = 0
 
