@@ -142,12 +142,19 @@ def reflect(x, y):
         xr[i] = x[i-len(y)]
     return [xr, psi]
 
-eps = 1e-5
-k = 2
+# Start here!
+# simulate potential V = kx^2/2
+# select k below:
+k = 1
+# select energy level here
 n = 0
 import sys
 if sys.argc >= 2:
   n = int(sys.argv[1])
+# Harmonic oscillator energy levels are E_n = (1/2 + n) hbar omega
+# for k = 1, hbar omega = 1 in atomic units
+# 1 atomic unit = 27.2 eV
+eps = 1e-5
 Emax = 0
 Emin = 0
 
