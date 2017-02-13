@@ -149,7 +149,7 @@ k = 1
 # select energy level here
 n = 0
 import sys
-if sys.argc >= 2:
+if len(sys.argv) >= 2:
   n = int(sys.argv[1])
 # Harmonic oscillator energy levels are E_n = (1/2 + n) hbar omega
 # for k = 1, hbar omega = 1 in atomic units
