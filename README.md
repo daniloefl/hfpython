@@ -1,40 +1,12 @@
 # hfpython
 Hartree-Fock solver in Python with optimisations to improve convergence
 
-  * numerov.py
-    Has an example on how to solve a second order diff. eq. using the Numerov method.
-
-  * well.py
-    Calculates the energy levels and wave functions for a finite potential well.
-    It works similarly to harmonic.py and hydrogen.py, but the initial conditions assumed for the inward and outward integration
-    are that, psi = 0 or 1 at x->0 (depending if the number of zero crossings is even or odd) and psi = 0 at x->infinity.
-    Differently from hydrogen.py, it uses a linear grid of points (hydrogen.py uses a logarithmically spaced one).
-
-  * harmonic.py
-    Calculates the energy levels and wave functions for the harmonic oscillator.
-    It requires the number of zero crossings as an input. From that it assumes whether the function is even or odd and
-    associates the initial condition at x = 0 to be 0 or 1, depending on the case (0 if it is odd, 1 if it is even).
-    The convergence criteria is that the number of zero crossings match the required ones and that the solution from the boundary
-    condition at x = 0 matches the solution psi = 0 at x->infinity at the place where E-V changes sign, as it is done in hydrogen.py.
-    Differently from hydrogen.py, it uses a linear grid of points (hydrogen.py uses a logarithmically spaced one).
-
-  * hydrogen.py
-    Solves the radial equation for Hydrogen, using a logarighmic grid of points.
-    Uses the Numerov method.
-    It asks the user to input the energy to solve the Schroedinger equation.
-    It solves the equation with an approximation of the boundary condition at psi(0) and also
-    with an approximation of the boundary condition at psi(infinity). The result is then shown as
-    the two conditions merged in a point where E-V is zero.
-    If the energy is incorrect, the two boundary conditions will be inconsistent and the two
-    solutions will not match.
-    The energies are in Hartree atomic units, on which the Hydrogen correct energy is -0.5 Hartree
-    (which is -13.6 eV).
-
-  * hydrogen_auto.py
-    Same as hydrogen.py, but it does not ask for an energy input from the user.
-    It guesses the energy and calcylates the difference in the two solutions at the point on which E-V == 0.
-    Using the condition that the two solutions must match, it calculates a step for the energy and updates the energy,
-    repeating the calculation until it converges (using the criteria that the step in energy must be smaller than some small eps value).
+  * hf_newton.py
+    It includes the exchange and Coulomb potentials, similarly to helium.py, but for a general multi-electron system with a central nucleus potential.
+    As there are now terms in each HF eq. involving terms from the other equations, one must solve a linear coupled system for the difference eq.
+    Solving this more easily done, including an equation that imposes the (non-linear) normalisation of the wave functions and trying to minimise it
+    with the Newton-Raphson method. That is, the Jacobian of the non-linear system is calculated and one walks in the opposite direction to the jacobian.
+    Tests on the number of nodes are done periodically (but cannot be done for each solution or it can spoil the convergence of the Newton-Raphson method.
 
   * helium.py
     Same as before, but it includes a Hartree-Fock potential as well as the Coulomb potential for Z=2.
@@ -59,16 +31,42 @@ Hartree-Fock solver in Python with optimisations to improve convergence
     This assumes a result for the Helium atom only: that the exchange potential cancels half the Coulomb potential, by symmetry.
     This is not valid for higher Z, but the code still works for He^+ (as in this case there is only one electron and no Coulomb potential
     is calculated).
-    See hf.py for something valid until Be.
+    See hf_newton.py for something valid until Be.
 
-  * hf_newton.py
-    It includes the exchange and Coulomb potentials, similarly to helium.py, but for a general multi-electron system with a central nucleus potential.
-    As there are now terms in each HF eq. involving terms from the other equations, one must solve a linear coupled system for the difference eq.
-    Solving this more easily done, including an equation that imposes the (non-linear) normalisation of the wave functions and trying to minimise it
-    with the Newton-Raphson method. That is, the Jacobian of the non-linear system is calculated and one walks in the opposite direction to the jacobian.
-    Tests on the number of nodes are done periodically (but cannot be done for each solution or it can spoil the convergence of the Newton-Raphson method.
-    Faster convergence could be achieved with DIIS, but this is not yet working.
+  * hydrogen_auto.py
+    Same as hydrogen.py, but it does not ask for an energy input from the user.
+    It guesses the energy and calcylates the difference in the two solutions at the point on which E-V == 0.
+    Using the condition that the two solutions must match, it calculates a step for the energy and updates the energy,
+    repeating the calculation until it converges (using the criteria that the step in energy must be smaller than some small eps value).
 
+  * hydrogen.py
+    Solves the radial equation for Hydrogen, using a logarighmic grid of points.
+    Uses the Numerov method.
+    It asks the user to input the energy to solve the Schroedinger equation.
+    It solves the equation with an approximation of the boundary condition at psi(0) and also
+    with an approximation of the boundary condition at psi(infinity). The result is then shown as
+    the two conditions merged in a point where E-V is zero.
+    If the energy is incorrect, the two boundary conditions will be inconsistent and the two
+    solutions will not match.
+    The energies are in Hartree atomic units, on which the Hydrogen correct energy is -0.5 Hartree
+    (which is -13.6 eV).
+
+  * harmonic.py
+    Calculates the energy levels and wave functions for the harmonic oscillator.
+    It requires the number of zero crossings as an input. From that it assumes whether the function is even or odd and
+    associates the initial condition at x = 0 to be 0 or 1, depending on the case (0 if it is odd, 1 if it is even).
+    The convergence criteria is that the number of zero crossings match the required ones and that the solution from the boundary
+    condition at x = 0 matches the solution psi = 0 at x->infinity at the place where E-V changes sign, as it is done in hydrogen.py.
+    Differently from hydrogen.py, it uses a linear grid of points (hydrogen.py uses a logarithmically spaced one).
+
+  * well.py
+    Calculates the energy levels and wave functions for a finite potential well.
+    It works similarly to harmonic.py and hydrogen.py, but the initial conditions assumed for the inward and outward integration
+    are that, psi = 0 or 1 at x->0 (depending if the number of zero crossings is even or odd) and psi = 0 at x->infinity.
+    Differently from hydrogen.py, it uses a linear grid of points (hydrogen.py uses a logarithmically spaced one).
+
+  * numerov.py
+    Has an example on how to solve a second order diff. eq. using the Numerov method.
 
 This would be much faster in C, but it is easier to debug it in Python. It should also be easy to play with different potentials.
 One could, for example, change hydrogen_auto.py to solve the harmonic oscillator, or to solve the equations in a 1D lattice (but in this
